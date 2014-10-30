@@ -1,0 +1,4 @@
+django>=1.6,<1.7
+south
+djangorestframework
+-e git+https://github.com/mindsnacks/django-versionfield.git#egg=django-versionfield
