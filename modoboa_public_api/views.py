@@ -24,12 +24,12 @@ class CurrentVersionView(APIView):
             )
         try:
             mdinst = ModoboaInstance.objects.get(
-                hostname=request.META["HTTP_HOST"],
+                hostname=request.META["REMOTE_HOST"],
                 ip_address=request.META["REMOTE_ADDR"]
             )
         except ModoboaInstance.DoesNotExist:
             mdinst = ModoboaInstance.objects.create(
-                hostname=request.META["HTTP_HOST"],
+                hostname=request.META["REMOTE_HOST"],
                 ip_address=request.META["REMOTE_ADDR"],
                 known_version=form.cleaned_data["client_version"]
             )
