@@ -18,3 +18,7 @@ class ModoboaInstance(models.Model):
 
     class Meta:
         unique_together = [("hostname", "ip_address")]
+
+    def __str__(self):
+        return "[{0}] {1} -> {2}".format(
+            self.ip_address, self.hostname, self.known_version)
