@@ -22,11 +22,10 @@ class CurrentVersionView(APIView):
                 {"error": "Client version is missing or incorrect"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        remote_host = request.META.get("REMOTE_HOST")
-        remote_addr = request.META.get("REMOTE_ADDR")
-        args = {"ip_address": remote_addr}
-        if remote_host:
-            args["remote_host"] = remote_host
+        args = {
+            "ip_address": request.META.get("REMOTE_ADDR"),
+            "hostname": form.cleaned_data["client_site"]
+        }
         try:
             mdinst = ModoboaInstance.objects.get(**args)
         except ModoboaInstance.DoesNotExist:

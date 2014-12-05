@@ -13,3 +13,4 @@ class ClientVersionForm(forms.Form):
     """
 
     client_version = VersionField()
+    client_site = forms.CharField()
