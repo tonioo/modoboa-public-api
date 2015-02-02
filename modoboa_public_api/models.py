@@ -2,6 +2,7 @@
 Modoboa API models.
 """
 from django.db import models
+from django.utils import timezone
 
 from versionfield import VersionField
 
@@ -15,6 +16,7 @@ class ModoboaInstance(models.Model):
     hostname = models.CharField(max_length=255)
     ip_address = models.IPAddressField()
     known_version = VersionField()
+    last_request = models.DateTimeField(default=timezone.now, auto_now=True)
 
     class Meta:
         unique_together = [("hostname", "ip_address")]

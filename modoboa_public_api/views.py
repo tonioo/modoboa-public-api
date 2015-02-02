@@ -11,6 +11,12 @@ from .models import ModoboaInstance
 from .forms import ClientVersionForm
 
 
+BAD_HOSTNAME_LIST = [
+    "localhost",
+    "example.com"
+]
+
+
 class CurrentVersionView(APIView):
 
     """Get current modoboa version."""
@@ -19,24 +25,30 @@ class CurrentVersionView(APIView):
         form = ClientVersionForm(request.GET)
         if not form.is_valid():
             return Response(
-                {"error": "Client version is missing or incorrect"},
+                {"error": "Client version and/or site is missing or incorrect"},
                 status=status.HTTP_400_BAD_REQUEST
             )
         args = {
             "ip_address": request.META.get("REMOTE_ADDR"),
             "hostname": form.cleaned_data["client_site"]
         }
-        try:
+        if ModoboaInstance.objects.filter(**args).count():
             mdinst = ModoboaInstance.objects.get(**args)
-        except ModoboaInstance.DoesNotExist:
-            mdinst = ModoboaInstance.objects.create(
-                known_version=form.cleaned_data["client_version"],
-                **args
-            )
+        elif ModoboaInstance.objects.filter(hostname=args["hostname"]).count():
+            mdinst = ModoboaInstance.objects.get(hostname=args["hostname"])
+            mdinst.ip_address = args["ip_address"]
+        elif ModoboaInstance.objects.filter(ip_address=args["ip_address"]).count():
+            mdinst = ModoboaInstance.objects.get(ip_address=args["ip_address"])
+            if args["hostname"] not in BAD_HOSTNAME_LIST:
+                mdinst.hostname = args["hostname"]
+        elif args["hostname"] not in BAD_HOSTNAME_LIST:
+            mdinst = ModoboaInstance(**args)
         else:
+            mdinst = None
+        if mdinst is not None:
             if mdinst.known_version != form.cleaned_data["client_version"]:
                 mdinst.known_version = form.cleaned_data["client_version"]
-                mdinst.save()
+            mdinst.save()
         data = {"version": settings.MODOBOA_CURRENT_VERSION[0],
                 "changelog_url": settings.MODOBOA_CURRENT_VERSION[1]}
         return Response(data)

@@ -9,7 +9,9 @@ class ModoboaInstanceAdmin(admin.ModelAdmin):
     Admin class for ModoboaInstance model.
     """
 
-    list_display = ("ip_address", "hostname", "known_version")
+    list_display = (
+        "ip_address", "hostname", "known_version", "last_request"
+    )
 
 
 admin.site.register(ModoboaInstance, ModoboaInstanceAdmin)
