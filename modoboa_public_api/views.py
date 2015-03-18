@@ -7,9 +7,9 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import ModoboaInstance
+from .models import ModoboaInstance, ModoboaExtension
 from .forms import ClientVersionForm
-
+from .serializers import ModoboaExtensionSerializer
 
 BAD_HOSTNAME_LIST = [
     "localhost",
@@ -53,3 +53,12 @@ class CurrentVersionView(APIView):
                 "changelog_url": settings.MODOBOA_CURRENT_VERSION[1]}
         return Response(data)
 
+
+class ExtensionListView(APIView):
+
+    """List all defined extensions."""
+
+    def get(self, request, fmt=None):
+        extensions = ModoboaExtension.objects.all()
+        serializer = ModoboaExtensionSerializer(extensions, many=True)
+        return Response(serializer.data)

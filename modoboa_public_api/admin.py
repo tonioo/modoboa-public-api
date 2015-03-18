@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import ModoboaInstance
+from .models import ModoboaInstance, ModoboaExtension
 
 
 class ModoboaInstanceAdmin(admin.ModelAdmin):
@@ -14,4 +14,12 @@ class ModoboaInstanceAdmin(admin.ModelAdmin):
     )
 
 
+class ModoboaExtensionAdmin(admin.ModelAdmin):
+
+    """Admin class for ModoboaExtension model."""
+
+    list_display = ("name", "version")
+
+
 admin.site.register(ModoboaInstance, ModoboaInstanceAdmin)
+admin.site.register(ModoboaExtension, ModoboaExtensionAdmin)
