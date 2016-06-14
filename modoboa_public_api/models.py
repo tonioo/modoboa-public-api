@@ -1,22 +1,26 @@
-"""
-Modoboa API models.
-"""
+"""Modoboa API models."""
+
 from django.db import models
-from django.utils import timezone
 
 from versionfield import VersionField
 
 
 class ModoboaInstance(models.Model):
-
-    """
-    A model to represent a modoboa instance.
-    """
+    """A model to represent a modoboa instance."""
 
     hostname = models.CharField(max_length=255)
-    ip_address = models.IPAddressField()
+    ip_address = models.GenericIPAddressField()
     known_version = VersionField()
-    last_request = models.DateTimeField(default=timezone.now, auto_now=True)
+    created = models.DateTimeField(auto_now_add=True)
+    last_request = models.DateTimeField(auto_now=True)
+
+    # Statistics
+    domain_counter = models.PositiveIntegerField(default=0)
+    mailbox_counter = models.PositiveIntegerField(default=0)
+    alias_counter = models.PositiveIntegerField(default=0)
+
+    # Used extensions
+    extensions = models.ManyToManyField("ModoboaExtension", blank=True)
 
     class Meta:
         unique_together = [("hostname", "ip_address")]
@@ -27,11 +31,7 @@ class ModoboaInstance(models.Model):
 
 
 class ModoboaExtension(models.Model):
-
     """A modoboa extension with its latest version."""
 
     name = models.CharField(max_length=255, unique=True)
     version = VersionField()
-
-    def __str__(self):
-        return "{0}: {1}".format(self.name, self.version)

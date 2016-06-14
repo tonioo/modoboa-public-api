@@ -10,7 +10,8 @@ class ModoboaInstanceAdmin(admin.ModelAdmin):
     """
 
     list_display = (
-        "ip_address", "hostname", "known_version", "last_request"
+        "ip_address", "hostname", "known_version", "last_request",
+        "domain_counter", "mailbox_counter", "alias_counter"
     )
 
 

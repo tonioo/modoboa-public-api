@@ -3,19 +3,18 @@ API views.
 """
 from django.conf import settings
 
-from rest_framework import status
-from rest_framework.response import Response
+from rest_framework import mixins, response, status, viewsets
 from rest_framework.views import APIView
 
 from .models import ModoboaInstance, ModoboaExtension
 from .forms import ClientVersionForm
-from .serializers import ModoboaExtensionSerializer
 
-BAD_HOSTNAME_LIST = [
-    "localhost",
-    "example.com"
-]
+from . import constants
+from . import models
+from . import serializers
 
+
+# Legacy API, to deprecate
 
 class CurrentVersionView(APIView):
 
@@ -24,24 +23,25 @@ class CurrentVersionView(APIView):
     def get(self, request, fmt=None):
         form = ClientVersionForm(request.GET)
         if not form.is_valid():
-            return Response(
-                {"error": "Client version and/or site is missing or incorrect"},
+            return response.Response(
+                {"error": (
+                    "Client version and/or site is missing or incorrect")},
                 status=status.HTTP_400_BAD_REQUEST
             )
         args = {
             "ip_address": request.META.get("REMOTE_ADDR"),
             "hostname": form.cleaned_data["client_site"]
         }
-        if ModoboaInstance.objects.filter(**args).count():
+        if ModoboaInstance.objects.filter(**args).exists():
             mdinst = ModoboaInstance.objects.get(**args)
-        elif ModoboaInstance.objects.filter(hostname=args["hostname"]).count():
+        elif ModoboaInstance.objects.filter(hostname=args["hostname"]).exists():
             mdinst = ModoboaInstance.objects.get(hostname=args["hostname"])
             mdinst.ip_address = args["ip_address"]
-        elif ModoboaInstance.objects.filter(ip_address=args["ip_address"]).count():
+        elif ModoboaInstance.objects.filter(ip_address=args["ip_address"]).exists():
             mdinst = ModoboaInstance.objects.get(ip_address=args["ip_address"])
-            if args["hostname"] not in BAD_HOSTNAME_LIST:
+            if args["hostname"] not in constants.BAD_HOSTNAME_LIST:
                 mdinst.hostname = args["hostname"]
-        elif args["hostname"] not in BAD_HOSTNAME_LIST:
+        elif args["hostname"] not in constants.BAD_HOSTNAME_LIST:
             mdinst = ModoboaInstance(**args)
         else:
             mdinst = None
@@ -51,14 +51,38 @@ class CurrentVersionView(APIView):
             mdinst.save()
         data = {"version": settings.MODOBOA_CURRENT_VERSION[0],
                 "changelog_url": settings.MODOBOA_CURRENT_VERSION[1]}
-        return Response(data)
+        return response.Response(data)
 
 
-class ExtensionListView(APIView):
-
+class ExtensionListViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     """List all defined extensions."""
 
-    def get(self, request, fmt=None):
-        extensions = ModoboaExtension.objects.all()
-        serializer = ModoboaExtensionSerializer(extensions, many=True)
-        return Response(serializer.data)
+    queryset = ModoboaExtension.objects.all()
+    serializer_class = serializers.ModoboaExtensionSerializer
+
+
+# New API
+
+class InstanceViewSet(mixins.CreateModelMixin, mixins.UpdateModelMixin,
+                      viewsets.GenericViewSet):
+    """Create or update instance."""
+
+    queryset = ModoboaInstance.objects.all()
+    serializer_class = serializers.InstanceSerializer
+
+
+class VersionViewSet(viewsets.ViewSet):
+    """List all versions."""
+
+    def list(self, request):
+        data = []
+        for extension in models.ModoboaExtension.objects.all():
+            data.append({
+                "name": extension.name, "version": extension.version,
+                "url": ""})
+        data.append({
+            "name": "modoboa", "version": settings.MODOBOA_CURRENT_VERSION[0],
+            "url": settings.MODOBOA_CURRENT_VERSION[1]
+        })
+        serializer = serializers.VersionSerializer(data, many=True)
+        return response.Response(serializer.data)

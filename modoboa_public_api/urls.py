@@ -1,16 +1,22 @@
-"""
-API urls.
-"""
-from django.conf.urls import patterns, url
+"""API urls."""
 
-from rest_framework.urlpatterns import format_suffix_patterns
+from django.conf.urls import url
+
+from rest_framework import routers
 
 from . import views
 
-urlpatterns = patterns(
-    '',
-    url(r'^current_version/$', views.CurrentVersionView.as_view()),
-    url(r'^extensions/$', views.ExtensionListView.as_view()),
-)
 
-urlpatterns = format_suffix_patterns(urlpatterns)
+router = routers.SimpleRouter()
+router.register("instances", views.InstanceViewSet, base_name="instance")
+router.register("versions", views.VersionViewSet, base_name="version")
+
+# Legacy API
+router.register(
+    "extensions", views.ExtensionListViewSet, base_name="extension")
+urlpatterns = [
+    url(r'^current_version/$', views.CurrentVersionView.as_view(),
+        name="current_version"),
+]
+
+urlpatterns += router.urls
