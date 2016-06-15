@@ -1,9 +1,7 @@
-"""
-API views.
-"""
+"""API views."""
 from django.conf import settings
 
-from rest_framework import mixins, response, status, viewsets
+from rest_framework import decorators, mixins, response, status, viewsets
 from rest_framework.views import APIView
 
 from .models import ModoboaInstance, ModoboaExtension
@@ -69,6 +67,24 @@ class InstanceViewSet(mixins.CreateModelMixin, mixins.UpdateModelMixin,
 
     queryset = ModoboaInstance.objects.all()
     serializer_class = serializers.InstanceSerializer
+
+    @decorators.list_route(methods=["get"])
+    def search(self, request, *args, **kwargs):
+        """Search an instance."""
+        hostname = request.GET.get("hostname")
+        if not hostname:
+            return response.Response({
+                "error": "No hostname provided."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        ip_address = request.META.get("REMOTE_ADDR")
+        instance = models.ModoboaInstance.objects.filter(
+            ip_address=ip_address, hostname=hostname).first()
+        if not instance:
+            return response.Response({
+                "error": "Instance not found."
+            }, status=status.HTTP_404_NOT_FOUND)
+        serializer = self.get_serializer(instance)
+        return response.Response(serializer.data)
 
 
 class VersionViewSet(viewsets.ViewSet):
