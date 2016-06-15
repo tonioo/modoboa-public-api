@@ -7,8 +7,10 @@ class ModoboaInstanceAdmin(admin.ModelAdmin):
     """Admin class for ModoboaInstance model."""
 
     list_display = (
-        "ip_address", "hostname", "known_version", "last_request",
-        "domain_counter", "mailbox_counter", "alias_counter"
+        "ip_address", "hostname", "known_version",
+        "domain_counter", "domain_alias_counter",
+        "mailbox_counter", "alias_counter",
+        "last_request",
     )
     list_filter = ("known_version", )
     search_fields = ["ip_address", "hostname"]
