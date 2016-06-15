@@ -50,7 +50,8 @@ class InstanceSerializer(serializers.ModelSerializer):
         model = models.ModoboaInstance
         fields = (
             "pk", "hostname", "known_version",
-            "domain_counter", "mailbox_counter", "alias_counter",
+            "domain_counter", "domain_alias_counter",
+            "mailbox_counter", "alias_counter",
             "extensions")
 
     def validate_hostname(self, value):

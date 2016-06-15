@@ -38,7 +38,8 @@ class InstanceViewSetTestCase(TestCase):
         # Full set
         data.update({
             "hostname": "mail.example2.tld",
-            "domain_counter": 10, "mailbox_counter": 10, "alias_counter": 10,
+            "domain_counter": 10, "mailbox_counter": 10,
+            "alias_counter": 10, "domain_alias_counter": 10,
             "extensions": ["modoboa-amavis"],
         })
         response = self.client.post(url, data=data, format="json")

@@ -16,6 +16,7 @@ class ModoboaInstance(models.Model):
 
     # Statistics
     domain_counter = models.PositiveIntegerField(default=0)
+    domain_alias_counter = models.PositiveIntegerField(default=0)
     mailbox_counter = models.PositiveIntegerField(default=0)
     alias_counter = models.PositiveIntegerField(default=0)
 
