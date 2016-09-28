@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+{% load i18n static %}
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Modoboa API dashboard</title>
+
+    <link href="{% static 'bootstrap/dist/css/bootstrap.min.css' %}" rel="stylesheet">
+    <link href="{% static 'c3/c3.min.css' %}" rel="stylesheet">
+
+    <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+      <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
+      <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="text-center">{% trans "API dashboard" %}</h1>
+      <hr>
+      <div class="row">
+        <div class="col-sm-6">
+          <h2 class="text-center">{% trans "Statistics" %}</h2>
+          <div class="panel panel-success text-center">
+            <h1 class="text-success">{{ active_instances }}</h1>
+            <h4>{% trans "active instances" %}</h4>
+          </div>
+          <div class="panel panel-info text-center">
+            <h1 class="text-info">{{ instances }}</h1>
+            <h4>{% trans "known instances" %}</h4>
+          </div>
+        </div>
+        <div class="col-sm-6">
+          <h2 class="text-center">{% trans "Distribution per version" %}</h2>
+          <div id="instances_per_version"></div>
+        </div>
+      </div>
+      <hr>
+      <h2 class="text-center">
+        <a href="{% url 'dashboard' %}?month={{ prev_month }}"><span class="glyphicon glyphicon-chevron-left"></span></a>
+        {% trans "New instances per day" %} ({{ month }})
+        <a href="{% url 'dashboard' %}?month={{ next_month }}"><span class="glyphicon glyphicon-chevron-right"></span></a>
+      </h2>
+      <div class="row">
+        <div class="col-sm-10">
+          <div id="new_instances_per_day"></div>
+        </div>
+        <div class="col-sm-2">
+          <div class="panel panel-info text-center">
+            <h1 class="text-info">{{ new_instances_this_month }}</h1>
+            <h4>{% trans "total" %}</h4>
+          </div>
+          <div class="panel panel-info text-center">
+            <h1 class="text-info">{{ average_instance_per_day }}</h1>
+            <h4>{% trans "average (i/d)" %}</h4>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="{% static 'jquery/dist/jquery.min.js' %}"></script>
+    <script src="{% static 'bootstrap/dist/js/bootstrap.min.js' %}"></script>
+    <script src="{% static 'd3/d3.min.js' %}"></script>
+    <script src="{% static 'c3/c3.min.js' %}"></script>
+    <script>
+     $(document).ready(function() {
+         var pie_chart = c3.generate({
+             bindto: '#instances_per_version',
+             size: { height: 300 },
+             data: {
+                 columns: {{ instances_per_version|safe }},
+                 type: 'pie'
+             },
+             legend: {
+                 position: 'right'
+             }
+         });
+
+         var ts_chart = c3.generate({
+             bindto: '#new_instances_per_day',
+             data: {
+                 x: 'x',
+                 columns: [
+                     ['x', '{{ new_instances_per_day.keys|join:"','" }}'],
+                     ['instances', {{ new_instances_per_day.values|join:"," }}]
+                 ],
+                 types: {
+                     'instances': 'spline'
+                 }
+             },
+             axis: {
+                 x: {
+                     type: 'timeseries',
+                     tick: {
+                         format: '%Y-%m-%d'
+                     }
+                 }
+             }
+         });
+     });
+    </script>
+
+  </body>
+</html>
