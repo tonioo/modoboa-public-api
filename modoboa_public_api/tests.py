@@ -16,6 +16,7 @@ class InstanceViewSetTestCase(TestCase):
     def setUpTestData(cls):
         """Create some data."""
         factories.ModoboaExtensionFactory(name="modoboa-amavis")
+        factories.ModoboaExtensionFactory(name="modoboa-stats")
         cls.md_instance = factories.ModoboaInstanceFactory(
             hostname="mail.pouet.fr", ip_address="127.0.0.1")
 
@@ -54,7 +55,8 @@ class InstanceViewSetTestCase(TestCase):
         url = reverse("instance-detail", args=[9999])
         data = {
             "hostname": "mail.pouet.fr", "known_version": "1.2.3",
-            "domain_counter": 10, "extensions": ["modoboa-amavis"]
+            "domain_counter": 10, "extensions": [
+                "modoboa-amavis", "modoboa_stats"]
         }
         response = self.client.put(url, data=data, format="json")
         self.assertEqual(response.status_code, 404)
@@ -66,6 +68,9 @@ class InstanceViewSetTestCase(TestCase):
         self.assertTrue(
             self.md_instance.extensions.filter(
                 name="modoboa-amavis").exists())
+        self.assertTrue(
+            self.md_instance.extensions.filter(
+                name="modoboa-stats").exists())
 
     def test_search(self):
         """Test instance search."""

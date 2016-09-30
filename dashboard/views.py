@@ -29,7 +29,7 @@ class DashboardView(auth_mixins.LoginRequiredMixin, generic.TemplateView):
             self.request.GET.get("month", now.strftime(MONTH_FORMAT)),
             MONTH_FORMAT)
         qset = models.ModoboaInstance.objects.filter(
-            last_request__gte=now - relativedelta(months=6)).order_by(
+            last_request__gte=now - relativedelta(months=1)).order_by(
                 "known_version")
         active_instances = qset.count()
         for instance in qset:
