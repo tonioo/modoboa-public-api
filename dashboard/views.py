@@ -5,6 +5,7 @@ import datetime
 
 from dateutil.relativedelta import relativedelta
 
+from django.db.models import Count, Sum
 from django.utils import timezone
 from django.views import generic
 
@@ -28,11 +29,9 @@ class DashboardView(auth_mixins.LoginRequiredMixin, generic.TemplateView):
         month = datetime.datetime.strptime(
             self.request.GET.get("month", now.strftime(MONTH_FORMAT)),
             MONTH_FORMAT)
-        qset = models.ModoboaInstance.objects.filter(
-            last_request__gte=now - relativedelta(months=1)).order_by(
-                "known_version")
-        active_instances = qset.count()
-        for instance in qset:
+        all_qset = models.ModoboaInstance.objects.all().order_by(
+            "known_version")
+        for instance in all_qset:
             key = str(instance.known_version)
             if key not in instances_per_version:
                 instances_per_version[key] = 0
@@ -60,16 +59,28 @@ class DashboardView(auth_mixins.LoginRequiredMixin, generic.TemplateView):
             cur_date += relativedelta(days=1)
         prev_month = (month - relativedelta(months=1)).strftime("%m%Y")
         next_month = (month + relativedelta(months=1)).strftime("%m%Y")
+        counters = models.ModoboaInstance.objects.all().aggregate(
+            total=Count("pk"),
+            domain_counter=Sum("domain_counter"),
+            mailbox_counter=Sum("mailbox_counter"))
+
+        extension_counters = []
+        extensions = models.ModoboaExtension.objects.all().annotate(
+            total=Count("modoboainstance"))
+        for extension in extensions:
+            extension_counters.append([str(extension.name), extension.total])
         context.update({
             "month": month.strftime("%b %Y"),
             "prev_month": prev_month,
             "next_month": next_month,
-            "instances": models.ModoboaInstance.objects.count(),
-            "active_instances": active_instances,
+            "counters": counters,
+            "active_instances": all_qset.filter(
+                last_request__gte=now - relativedelta(months=1)).count(),
             "new_instances_this_month": qset.count(),
             "average_instance_per_day": (
                 qset.count() / (end_date - from_datetime.date()).days),
             "instances_per_version": instances_per_version,
-            "new_instances_per_day": new_instances_per_day
+            "new_instances_per_day": new_instances_per_day,
+            "extension_counters": extension_counters
         })
         return context

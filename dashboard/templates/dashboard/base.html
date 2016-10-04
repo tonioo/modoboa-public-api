@@ -24,13 +24,27 @@
       <div class="row">
         <div class="col-sm-6">
           <h2 class="text-center">{% trans "Statistics" %}</h2>
-          <div class="panel panel-success text-center">
-            <h1 class="text-success">{{ active_instances }}</h1>
-            <h4>{% trans "active instances" %}</h4>
-          </div>
-          <div class="panel panel-info text-center">
-            <h1 class="text-info">{{ instances }}</h1>
-            <h4>{% trans "known instances" %}</h4>
+          <div class="row">
+            <div class="col-sm-6">
+              <div class="panel panel-info text-center">
+                <h1 class="text-info">{{ counters.total }}</h1>
+                <h4>{% trans "known instances" %}</h4>
+              </div>
+              <div class="panel panel-success text-center">
+                <h1 class="text-success">{{ active_instances }}</h1>
+                <h4>{% trans "active for the past 30 days" %}</h4>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="panel panel-success text-center">
+                <h1 class="text-success">{{ counters.domain_counter }}</h1>
+                <h4>{% trans "domains" %}</h4>
+              </div>
+              <div class="panel panel-info text-center">
+                <h1 class="text-info">{{ counters.mailbox_counter }}</h1>
+                <h4>{% trans "mailboxes" %}</h4>
+              </div>    
+            </div>
           </div>
         </div>
         <div class="col-sm-6">
@@ -59,6 +73,9 @@
           </div>
         </div>
       </div>
+      <hr>
+      <h2 class="text-center">{% trans "Extensions usage" %}</h2>
+      <div id="extensions_usage"></div>
     </div>
 
     <script src="{% static 'jquery/dist/jquery.min.js' %}"></script>
@@ -97,6 +114,20 @@
                      tick: {
                          format: '%Y-%m-%d'
                      }
+                 }
+             }
+         });
+
+         var extesions_chart = c3.generate({
+             bindto: '#extensions_usage',
+             size: { height: 300 },
+             data: {
+                 columns: {{ extension_counters|safe }},
+                 type: 'bar'
+             },
+             bar: {
+                 width: {
+                     ratio: 0.5
                  }
              }
          });
