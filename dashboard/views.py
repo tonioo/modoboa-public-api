@@ -43,7 +43,9 @@ class DashboardView(auth_mixins.LoginRequiredMixin, generic.TemplateView):
         temp_dict = {}
         tz = timezone.get_current_timezone()
         from_datetime = tz.localize(month)
-        end_date = (from_datetime + relativedelta(months=1, days=-1)).date()
+        end_date = min(
+            (from_datetime + relativedelta(months=1, days=-1)).date(),
+            now.date())
         qset = models.ModoboaInstance.objects.filter(
             created__gte=from_datetime, created__date__lte=end_date)
         for instance in qset:
