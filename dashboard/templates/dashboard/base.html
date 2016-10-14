@@ -73,6 +73,14 @@
       <hr>
       <h2 class="text-center">{% trans "Access logs" %} ({{ logs_period.0|date:"SHORT_DATETIME_FORMAT" }} - {{ logs_period.1|date:"SHORT_DATETIME_FORMAT" }})</h2>
       <div class="row">
+        <div class="col-sm-offset-4 col-sm-4">
+          <div class="panel panel-success text-center">
+            <h1 class="text-success">{{ hits_by_second|floatformat }}</h1>
+            <h4>{% trans "hits per second" %}</h4>
+          </div>
+        </div>
+      </div>
+      <div class="row">
         <div class="col-sm-6">
           <div id="hits_by_service"></div>
         </div>

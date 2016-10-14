@@ -81,9 +81,12 @@ class DashboardView(auth_mixins.LoginRequiredMixin, generic.TemplateView):
         services, period = tools.parse_access_logs()
         hits_by_service = []
         ips_by_service = []
+        total_hits = 0
         for service, stats in services.items():
+            total_hits += stats["total"]
             hits_by_service.append([service, stats["total"]])
             ips_by_service.append([service, len(stats["ips"])])
+        hits_by_second = total_hits / ((period[1] - period[0]).total_seconds())
         context.update({
             "month": month.strftime("%b %Y"),
             "prev_month": prev_month,
@@ -102,6 +105,7 @@ class DashboardView(auth_mixins.LoginRequiredMixin, generic.TemplateView):
             "extension_counters": extension_counters,
             "hits_by_service": hits_by_service,
             "ips_by_service": ips_by_service,
+            "hits_by_second": hits_by_second,
             "logs_period": period
         })
         return context
