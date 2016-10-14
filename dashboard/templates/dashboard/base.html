@@ -71,6 +71,16 @@
         </div>
       </div>
       <hr>
+      <h2 class="text-center">{% trans "Access logs" %} ({{ logs_period.0|date:"SHORT_DATETIME_FORMAT" }} - {{ logs_period.1|date:"SHORT_DATETIME_FORMAT" }})</h2>
+      <div class="row">
+        <div class="col-sm-6">
+          <div id="hits_by_service"></div>
+        </div>
+        <div class="col-sm-6">
+          <div id="ips_by_service"></div>
+        </div>
+      </div>
+      <hr>
       <h2 class="text-center">
         <a href="{% url 'dashboard' %}?month={{ prev_month }}"><span class="glyphicon glyphicon-chevron-left"></span></a>
         {% trans "New instances per day" %} ({{ month }})
@@ -139,7 +149,7 @@
              }
          });
 
-         var extesions_chart = c3.generate({
+         var extensions_chart = c3.generate({
              bindto: '#extensions_usage',
              size: { height: 300 },
              data: {
@@ -152,6 +162,31 @@
                  }
              }
          });
+
+         var access_logs_hits_chart = c3.generate({
+             bindto: '#hits_by_service',
+             size: { height: 300 },
+             data: {
+                 columns: {{ hits_by_service|safe }},
+                 type: 'bar'
+             },
+             title: {
+                 text: 'Hits by API service'
+             }
+         });
+
+         var access_logs_ip_chart = c3.generate({
+             bindto: '#ips_by_service',
+             size: { height: 300 },
+             data: {
+                 columns: {{ ips_by_service|safe }},
+                 type: 'bar'
+             },
+             title: {
+                 text: 'IP by API service'
+             }
+         });
+
      });
     </script>
 

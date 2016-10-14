@@ -13,6 +13,8 @@ from django.contrib.auth import mixins as auth_mixins
 
 from modoboa_public_api import models
 
+from . import tools
+
 MONTH_FORMAT = "%m%Y"
 
 
@@ -75,6 +77,13 @@ class DashboardView(auth_mixins.LoginRequiredMixin, generic.TemplateView):
             total=Count("modoboainstance"))
         for extension in extensions:
             extension_counters.append([str(extension.name), extension.total])
+
+        services, period = tools.parse_access_logs()
+        hits_by_service = []
+        ips_by_service = []
+        for service, stats in services.items():
+            hits_by_service.append([service, stats["total"]])
+            ips_by_service.append([service, len(stats["ips"])])
         context.update({
             "month": month.strftime("%b %Y"),
             "prev_month": prev_month,
@@ -90,6 +99,9 @@ class DashboardView(auth_mixins.LoginRequiredMixin, generic.TemplateView):
                 qset.count() / (end_date - from_datetime.date()).days),
             "instances_per_version": instances_per_version,
             "new_instances_per_day": new_instances_per_day,
-            "extension_counters": extension_counters
+            "extension_counters": extension_counters,
+            "hits_by_service": hits_by_service,
+            "ips_by_service": ips_by_service,
+            "logs_period": period
         })
         return context
