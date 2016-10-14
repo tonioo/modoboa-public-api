@@ -31,7 +31,9 @@ class DashboardView(auth_mixins.LoginRequiredMixin, generic.TemplateView):
             MONTH_FORMAT)
         all_qset = models.ModoboaInstance.objects.all().order_by(
             "known_version")
-        for instance in all_qset:
+        # Only consider the last month
+        analyzed_period = now - relativedelta(months=1)
+        for instance in all_qset.filter(last_request__gte=analyzed_period):
             key = str(instance.known_version)
             if key not in instances_per_version:
                 instances_per_version[key] = 0
@@ -64,7 +66,9 @@ class DashboardView(auth_mixins.LoginRequiredMixin, generic.TemplateView):
         counters = models.ModoboaInstance.objects.all().aggregate(
             total=Count("pk"),
             domain_counter=Sum("domain_counter"),
-            mailbox_counter=Sum("mailbox_counter"))
+            mailbox_counter=Sum("mailbox_counter"),
+            alias_counter=Sum("alias_counter"),
+        )
 
         extension_counters = []
         extensions = models.ModoboaExtension.objects.all().annotate(
@@ -77,7 +81,10 @@ class DashboardView(auth_mixins.LoginRequiredMixin, generic.TemplateView):
             "next_month": next_month,
             "counters": counters,
             "active_instances": all_qset.filter(
-                last_request__gte=now - relativedelta(months=1)).count(),
+                last_request__gte=analyzed_period).count(),
+            "instances_sending_stats": all_qset.filter(
+                last_request__gte=analyzed_period, known_version__gte="1.6.0")
+            .count(),
             "new_instances_this_month": qset.count(),
             "average_instance_per_day": (
                 qset.count() / (end_date - from_datetime.date()).days),

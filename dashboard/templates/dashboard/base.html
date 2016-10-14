@@ -22,33 +22,51 @@
       <h1 class="text-center">{% trans "API dashboard" %}</h1>
       <hr>
       <div class="row">
+        <div class="col-sm-3">
+          <div class="panel panel-info text-center">
+            <h1 class="text-info">{{ counters.total }}</h1>
+            <h4>{% trans "known instances" %}</h4>
+          </div>
+        </div>
+        <div class="col-sm-3">
+          <div class="panel panel-success text-center">
+            <h1 class="text-success">{{ counters.domain_counter }}</h1>
+            <h4>{% trans "domains" %}</h4>
+          </div>
+        </div>
+        <div class="col-sm-3">
+          <div class="panel panel-info text-center">
+            <h1 class="text-info">{{ counters.mailbox_counter }}</h1>
+            <h4>{% trans "mailboxes" %}</h4>
+          </div>
+        </div>
+        <div class="col-sm-3">
+          <div class="panel panel-success text-center">
+            <h1 class="text-success">{{ counters.alias_counter }}</h1>
+            <h4>{% trans "aliases" %}</h4>
+          </div>
+        </div>
+      </div>
+      <h2 class="text-center">{% trans "Activity of the last 30 days" %}</h2>
+      <hr>
+      <div class="row">
         <div class="col-sm-6">
-          <h2 class="text-center">{% trans "Statistics" %}</h2>
           <div class="row">
             <div class="col-sm-6">
-              <div class="panel panel-info text-center">
-                <h1 class="text-info">{{ counters.total }}</h1>
-                <h4>{% trans "known instances" %}</h4>
-              </div>
               <div class="panel panel-success text-center">
                 <h1 class="text-success">{{ active_instances }}</h1>
-                <h4>{% trans "active for the past 30 days" %}</h4>
+                <h4>{% trans "active instances" %}</h4>
+              </div>
+              <div class="panel panel-warning text-center">
+                <h1 class="text-warning">{{ instances_sending_stats }}</h1>
+                <h4>{% trans "instances sending stats" %}</h4>
               </div>
             </div>
             <div class="col-sm-6">
-              <div class="panel panel-success text-center">
-                <h1 class="text-success">{{ counters.domain_counter }}</h1>
-                <h4>{% trans "domains" %}</h4>
-              </div>
-              <div class="panel panel-info text-center">
-                <h1 class="text-info">{{ counters.mailbox_counter }}</h1>
-                <h4>{% trans "mailboxes" %}</h4>
-              </div>    
             </div>
           </div>
         </div>
         <div class="col-sm-6">
-          <h2 class="text-center">{% trans "Distribution per version" %}</h2>
           <div id="instances_per_version"></div>
         </div>
       </div>
@@ -93,6 +111,9 @@
              },
              legend: {
                  position: 'right'
+             },
+             title: {
+                 text: 'Distribution'
              }
          });
 
