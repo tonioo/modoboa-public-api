@@ -8,13 +8,13 @@ LOG_FILE = "/var/log/nginx/api.modoboa.org-access.log"
 
 LINE_PATTERN = (
     r''
-    '(\d+.\d+.\d+.\d+)\s-\s-\s'  # IP address
-    '\[(.+)\]\s'                 # datetime
-    '"GET\s(.+)\s\w+/.+"\s'      # requested file
-    '(\d+)\s'                    # status
-    '(\d+)\s'                    # bandwidth
-    '"(.+)"\s'                   # referrer
-    '"(.+)"'                     # user agent
+    '(\d+.\d+.\d+.\d+)\s-\s-\s'             # IP address
+    '\[(.+)\]\s'                            # datetime
+    '"(GET|POST|PUT)\s(.+)\s\w+/.+"\s'      # path
+    '(\d+)\s'                               # status
+    '(\d+)\s'                               # bandwidth
+    '"(.+)"\s'                              # referrer
+    '"(.+)"'                                # user agent
 )
 
 ALLOWED_SERVICE_LIST = (
@@ -40,12 +40,14 @@ def parse_access_logs():
     to_datetime = datetime.datetime.strptime(
         match[-1][1].split(" ")[0], DATETIME_FORMAT)
     for res in match:
-        service = urlparse(res[2])
+        service = urlparse(res[3])
         path = service.path
         if path.startswith("/1"):
             path = service.path.replace("/1", "")
         for asrv in ALLOWED_SERVICE_LIST:
             if path.startswith(asrv):
+                if asrv == "/instances" and path != "/instances/search/":
+                    path = "/instances/update/"
                 if path not in services:
                     services[path] = {"total": 0, "ips": []}
                 services[path]["total"] += 1
