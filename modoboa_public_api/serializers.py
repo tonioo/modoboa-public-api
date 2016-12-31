@@ -64,7 +64,7 @@ class InstanceSerializer(serializers.ModelSerializer):
         """Fetch and set extensions."""
         extensions = [extension.replace("_", "-") for extension in extensions]
         extensions = models.ModoboaExtension.objects.filter(
-            name__in=extensions)
+            name__in=extensions).distinct()
         for extension in extensions:
             instance.extensions.add(extension)
 
