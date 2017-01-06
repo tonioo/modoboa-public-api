@@ -65,12 +65,19 @@ class InstanceViewSetTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         self.md_instance.refresh_from_db()
         self.assertEqual(self.md_instance.domain_counter, 10)
+        self.assertEqual(self.md_instance.extensions.count(), 2)
         self.assertTrue(
             self.md_instance.extensions.filter(
                 name="modoboa-amavis").exists())
         self.assertTrue(
             self.md_instance.extensions.filter(
                 name="modoboa-stats").exists())
+        data["extensions"] = ["modoboa-amavis"]
+        url = reverse("instance-detail", args=[self.md_instance.pk])
+        response = self.client.put(url, data=data, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.md_instance.refresh_from_db()
+        self.assertEqual(self.md_instance.extensions.count(), 1)
 
     def test_search(self):
         """Test instance search."""
