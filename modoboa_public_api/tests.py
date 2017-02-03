@@ -169,3 +169,15 @@ class CurrentVersionAPI(TestCase):
             models.ModoboaInstance.objects.filter(
                 hostname="mail.pouet.com", known_version="1.0.0")
             .exists())
+
+    def test_bad_version(self):
+        """Check that API does not crash."""
+        url = reverse("current_version")
+        url = "{}?client_version={}&client_site={}".format(
+            url, "1.2.0-rc2", "mail.pouet.com")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            models.ModoboaInstance.objects.filter(
+                hostname="mail.pouet.com", known_version="1.2.0")
+            .exists())

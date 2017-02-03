@@ -1,8 +1,20 @@
 """Modoboa API models."""
 
+from dateutil.relativedelta import relativedelta
+
 from django.db import models
+from django.utils import timezone
 
 from versionfield import VersionField
+
+
+class ModoboaInstanceManager(models.Manager):
+    """Custom manager for ModoboaInstance."""
+
+    def active(self):
+        """Return active instances (last_request <= 1 month)."""
+        return self.get_queryset().filter(
+            last_request__gte=timezone.now() - relativedelta(months=1))
 
 
 class ModoboaInstance(models.Model):
@@ -22,6 +34,8 @@ class ModoboaInstance(models.Model):
 
     # Used extensions
     extensions = models.ManyToManyField("ModoboaExtension", blank=True)
+
+    objects = ModoboaInstanceManager()
 
     def __str__(self):
         return "[{0}] {1} -> {2}".format(

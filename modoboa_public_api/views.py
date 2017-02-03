@@ -19,6 +19,10 @@ class CurrentVersionView(APIView):
     """Get current modoboa version."""
 
     def get(self, request, fmt=None):
+        if request.GET.get("client_version") == "1.2.0-rc2":
+            # Temp. fix
+            request.GET = request.GET.copy()
+            request.GET["client_version"] = "1.2.0"
         form = ClientVersionForm(request.GET)
         if not form.is_valid():
             return response.Response(
