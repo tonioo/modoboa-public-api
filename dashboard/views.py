@@ -87,6 +87,7 @@ class DashboardView(auth_mixins.LoginRequiredMixin, generic.TemplateView):
             hits_by_service.append([service, stats["total"]])
             ips_by_service.append([service, len(stats["ips"])])
         hits_by_second = total_hits / ((period[1] - period[0]).total_seconds())
+        nb_days = (end_date - from_datetime.date()).days or 1
         context.update({
             "month": month.strftime("%b %Y"),
             "prev_month": prev_month,
@@ -98,8 +99,7 @@ class DashboardView(auth_mixins.LoginRequiredMixin, generic.TemplateView):
                 last_request__gte=analyzed_period, known_version__gte="1.6.0")
             .count(),
             "new_instances_this_month": qset.count(),
-            "average_instance_per_day": (
-                qset.count() / (end_date - from_datetime.date()).days),
+            "average_instance_per_day": qset.count() / nb_days,
             "instances_per_version": instances_per_version,
             "new_instances_per_day": new_instances_per_day,
             "extension_counters": extension_counters,
