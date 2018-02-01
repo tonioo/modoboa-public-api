@@ -79,6 +79,21 @@ class InstanceViewSetTestCase(TestCase):
         self.md_instance.refresh_from_db()
         self.assertEqual(self.md_instance.extensions.count(), 1)
 
+    def test_update_dev_version(self):
+        """Test update with a dev version."""
+        data = {
+            "hostname": "mail.pouet.fr",
+            "known_version": "1.10.2.dev5+ga327ccf0",
+            "domain_counter": 10, "extensions": [
+                "modoboa-amavis", "modoboa_stats"]
+        }
+        url = reverse("instance-detail", args=[self.md_instance.pk])
+        response = self.client.put(url, data=data, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.md_instance.refresh_from_db()
+        self.assertEqual(
+            self.md_instance.known_version, data["known_version"])
+
     def test_search(self):
         """Test instance search."""
         url = "{}?hostname={}".format(

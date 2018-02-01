@@ -5,8 +5,6 @@ from dateutil.relativedelta import relativedelta
 from django.db import models
 from django.utils import timezone
 
-from versionfield import VersionField
-
 
 class ModoboaInstanceManager(models.Manager):
     """Custom manager for ModoboaInstance."""
@@ -22,7 +20,7 @@ class ModoboaInstance(models.Model):
 
     hostname = models.CharField(max_length=255)
     ip_address = models.GenericIPAddressField()
-    known_version = VersionField()
+    known_version = models.CharField(max_length=30)
     created = models.DateTimeField(auto_now_add=True)
     last_request = models.DateTimeField(auto_now=True)
 
@@ -46,7 +44,7 @@ class ModoboaExtension(models.Model):
     """A modoboa extension with its latest version."""
 
     name = models.CharField(max_length=255, unique=True)
-    version = VersionField()
+    version = models.CharField(max_length=30)
 
     def __str__(self):
         return self.name
