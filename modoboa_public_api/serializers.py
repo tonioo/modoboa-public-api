@@ -65,7 +65,7 @@ class InstanceSerializer(serializers.ModelSerializer):
         extensions = [extension.replace("_", "-") for extension in extensions]
         extensions = models.ModoboaExtension.objects.filter(
             name__in=list(set(extensions)))
-        instance.extensions = list(extensions)
+        instance.extensions.set(list(extensions))
 
     def create(self, validated_data):
         """Fetch IP address from request."""
