@@ -31,18 +31,18 @@ class DashboardView(auth_mixins.LoginRequiredMixin, generic.TemplateView):
         month = datetime.datetime.strptime(
             self.request.GET.get("month", now.strftime(MONTH_FORMAT)),
             MONTH_FORMAT)
-        all_qset = models.ModoboaInstance.objects.all().order_by(
-            "known_version")
         # Only consider the last month
         analyzed_period = now - relativedelta(months=1)
-        for instance in all_qset.filter(last_request__gte=analyzed_period):
-            key = str(instance.known_version)
-            if key not in instances_per_version:
-                instances_per_version[key] = 0
-            instances_per_version[key] += 1
+        qset = (
+            models.ModoboaInstance.objects.filter(last_request__gte=analyzed_period)
+            .values("known_version")
+            .annotate(instance_count=Count("id"))
+            .order_by("-instance_count")[:5]
+        )
         instances_per_version = [
-            [str(version), counter]
-            for version, counter in instances_per_version.items()]
+            (item["known_version"], item["instance_count"])
+            for item in qset
+        ]
 
         temp_dict = {}
         tz = timezone.get_current_timezone()
