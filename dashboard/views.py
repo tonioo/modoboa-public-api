@@ -88,6 +88,8 @@ class DashboardView(auth_mixins.LoginRequiredMixin, generic.TemplateView):
             ips_by_service.append([service, len(stats["ips"])])
         hits_by_second = total_hits / ((period[1] - period[0]).total_seconds())
         nb_days = (end_date - from_datetime.date()).days or 1
+        all_qset = models.ModoboaInstance.objects.all().order_by(
+            "known_version")
         context.update({
             "month": month.strftime("%b %Y"),
             "prev_month": prev_month,
