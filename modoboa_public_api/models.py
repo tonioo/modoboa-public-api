@@ -20,7 +20,7 @@ class ModoboaInstance(models.Model):
 
     hostname = models.CharField(max_length=255)
     ip_address = models.GenericIPAddressField()
-    known_version = models.CharField(max_length=30)
+    known_version = models.CharField(max_length=30, db_index=True)
     created = models.DateTimeField(auto_now_add=True)
     last_request = models.DateTimeField(auto_now=True)
 

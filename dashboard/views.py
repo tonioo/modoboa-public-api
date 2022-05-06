@@ -40,7 +40,7 @@ class DashboardView(auth_mixins.LoginRequiredMixin, generic.TemplateView):
             .order_by("-instance_count")[:5]
         )
         instances_per_version = [
-            (item["known_version"], item["instance_count"])
+            [str(item["known_version"]), item["instance_count"]]
             for item in qset
         ]
 
