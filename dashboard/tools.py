@@ -4,7 +4,7 @@ import datetime
 import re
 from urllib.parse import urlparse
 
-LOG_FILE = "/var/log/nginx/api.modoboa.org-access.log"
+from django.conf import settings
 
 LINE_PATTERN = (
     r''
@@ -30,7 +30,7 @@ DATETIME_FORMAT = "%d/%b/%Y:%H:%M:%S"  # 09/Oct/2016:06:25:33 +0200
 def parse_access_logs():
     """Parse nginx logs."""
     pattern = re.compile(LINE_PATTERN)
-    with open(LOG_FILE) as fp:
+    with open(settings.NGINX_LOG_FILE_PATH) as fp:
         match = pattern.findall(fp.read())
     if not match:
         return {}
