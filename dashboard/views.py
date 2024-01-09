@@ -46,7 +46,7 @@ class DashboardView(auth_mixins.LoginRequiredMixin, generic.TemplateView):
 
         temp_dict = {}
         tz = timezone.get_current_timezone()
-        from_datetime = tz.localize(month)
+        from_datetime = month.replace(tzinfo=tz)
         end_date = min(
             (from_datetime + relativedelta(months=1, days=-1)).date(),
             now.date())

@@ -1,6 +1,6 @@
 """API urls."""
 
-from django.conf.urls import url
+from django.urls import path
 
 from rest_framework import routers
 
@@ -8,15 +8,15 @@ from . import views
 
 
 router = routers.SimpleRouter()
-router.register("instances", views.InstanceViewSet, base_name="instance")
-router.register("versions", views.VersionViewSet, base_name="version")
+router.register("instances", views.InstanceViewSet, basename="instance")
+router.register("versions", views.VersionViewSet, basename="version")
 
 # Legacy API
 router.register(
-    "extensions", views.ExtensionListViewSet, base_name="extension")
+    "extensions", views.ExtensionListViewSet, basename="extension")
 urlpatterns = [
-    url(r'^current_version/$', views.CurrentVersionView.as_view(),
-        name="current_version"),
+    path('current_version/', views.CurrentVersionView.as_view(),
+         name="current_version"),
 ]
 
 urlpatterns += router.urls

@@ -2,7 +2,7 @@
 
 import datetime
 import re
-from urlparse import urlparse
+from urllib.parse import urlparse
 
 LOG_FILE = "/var/log/nginx/api.modoboa.org-access.log"
 

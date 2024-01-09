@@ -72,7 +72,7 @@ class InstanceViewSet(mixins.CreateModelMixin, mixins.UpdateModelMixin,
     queryset = ModoboaInstance.objects.all()
     serializer_class = serializers.InstanceSerializer
 
-    @decorators.list_route(methods=["get"])
+    @decorators.action(methods=["get"], detail=False)
     def search(self, request, *args, **kwargs):
         """Search an instance."""
         hostname = request.GET.get("hostname")
