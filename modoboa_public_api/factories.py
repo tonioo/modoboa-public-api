@@ -5,7 +5,7 @@ import factory
 from . import models
 
 
-class ModoboaExtensionFactory(factory.DjangoModelFactory):
+class ModoboaExtensionFactory(factory.django.DjangoModelFactory):
     """Factory for ModoboaExtension."""
 
     class Meta:
@@ -14,7 +14,7 @@ class ModoboaExtensionFactory(factory.DjangoModelFactory):
     version = "1.0.0"
 
 
-class ModoboaInstanceFactory(factory.DjangoModelFactory):
+class ModoboaInstanceFactory(factory.django.DjangoModelFactory):
     """Factory for ModoboaInstance."""
 
     class Meta:

@@ -19,7 +19,7 @@ class BaseExtensionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.ModoboaExtension
-        fields = ("name", )
+        fields = ("name", "deprecated")
 
 
 class ModoboaExtensionSerializer(BaseExtensionSerializer):
