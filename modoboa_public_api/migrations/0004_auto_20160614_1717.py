@@ -4,7 +4,6 @@ from __future__ import unicode_literals
 
 import datetime
 from django.db import migrations, models
-from django.utils.timezone import utc
 
 
 class Migration(migrations.Migration):
@@ -22,7 +21,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='modoboainstance',
             name='created',
-            field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(2016, 6, 14, 17, 17, 37, 147971, tzinfo=utc)),
+            field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(2016, 6, 14, 17, 17, 37, 147971, tzinfo=datetime.timezone.utc)),
             preserve_default=False,
         ),
         migrations.AddField(

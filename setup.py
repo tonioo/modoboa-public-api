@@ -63,6 +63,7 @@ setup(
     author_email='tonio@ngyn.org',
     packages=find_packages(),
     include_package_data=True,
+    python_requires='>=3.10',
     zip_safe=False,
     install_requires=parse_requirements(PIP_REQUIRES),
     dependency_links=parse_dependency_links(PIP_REQUIRES),

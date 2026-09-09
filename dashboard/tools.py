@@ -7,14 +7,13 @@ from urllib.parse import urlparse
 from django.conf import settings
 
 LINE_PATTERN = (
-    r''
-    '(\d+.\d+.\d+.\d+)\s-\s-\s'             # IP address
-    '\[(.+)\]\s'                            # datetime
-    '"(GET|POST|PUT)\s(.+)\s\w+/.+"\s'      # path
-    '(\d+)\s'                               # status
-    '(\d+)\s'                               # bandwidth
-    '"(.+)"\s'                              # referrer
-    '"(.+)"'                                # user agent
+    r'(\d+.\d+.\d+.\d+)\s-\s-\s'            # IP address
+    r'\[(.+)\]\s'                           # datetime
+    r'"(GET|POST|PUT)\s(.+)\s\w+/.+"\s'     # path
+    r'(\d+)\s'                              # status
+    r'(\d+)\s'                              # bandwidth
+    r'"(.+)"\s'                             # referrer
+    r'"(.+)"'                               # user agent
 )
 
 ALLOWED_SERVICE_LIST = (
