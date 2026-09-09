@@ -20,7 +20,11 @@ class ModoboaExtensionAdmin(admin.ModelAdmin):
 
     """Admin class for ModoboaExtension model."""
 
-    list_display = ("name", "version")
+    list_display = (
+        "name", "version", "url", "is_core", "deprecated", "updated")
+    list_editable = ("version", "url")
+    list_filter = ("is_core", "deprecated")
+    search_fields = ["name"]
 
 
 admin.site.register(ModoboaInstance, ModoboaInstanceAdmin)

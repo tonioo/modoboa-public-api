@@ -1,5 +1,7 @@
 """API test cases."""
 
+from django.conf import settings
+from django.db import IntegrityError, transaction
 from django.urls import reverse
 from django.test import TestCase
 
@@ -7,6 +9,31 @@ from rest_framework.test import APIClient
 
 from . import factories
 from . import models
+
+
+class CoreComponentTestCase(TestCase):
+    """Modoboa itself is stored as a ModoboaExtension row."""
+
+    def test_seeded_from_settings(self):
+        """Migration 0011 created the row from the setting."""
+        core = models.ModoboaExtension.objects.core()
+        self.assertEqual(core.name, "modoboa")
+        self.assertEqual(core.version, settings.MODOBOA_CURRENT_VERSION[0])
+        self.assertEqual(core.url, settings.MODOBOA_CURRENT_VERSION[1])
+
+    def test_only_one_core_row(self):
+        """A second core row is rejected by the database."""
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            models.ModoboaExtension.objects.create(
+                name="other", version="1.0.0", is_core=True)
+
+    def test_core_row_is_not_an_extension(self):
+        """The core row is excluded from the extension queryset."""
+        factories.ModoboaExtensionFactory(name="modoboa-amavis")
+        self.assertEqual(models.ModoboaExtension.objects.count(), 2)
+        extensions = models.ModoboaExtension.objects.extensions()
+        self.assertEqual(
+            [extension.name for extension in extensions], ["modoboa-amavis"])
 
 
 class InstanceViewSetTestCase(TestCase):
@@ -135,6 +162,30 @@ class VersionViewSetTestCase(TestCase):
         versions = response.json()
         self.assertEqual(len(versions), 4)
 
+    def test_list_uses_core_row(self):
+        """Modoboa version and url come from database."""
+        core = models.ModoboaExtension.objects.core()
+        core.version = "9.9.9"
+        core.url = "https://example.test/releases/9.9.9"
+        core.save()
+        response = self.client.get(reverse("version-list"))
+        self.assertEqual(response.status_code, 200)
+        versions = response.json()
+        # Modoboa is still served last.
+        self.assertEqual(versions[-1], {
+            "name": "modoboa", "version": "9.9.9",
+            "url": "https://example.test/releases/9.9.9"})
+
+    def test_list_without_core_row(self):
+        """Modoboa is still announced when the row is missing."""
+        models.ModoboaExtension.objects.filter(is_core=True).delete()
+        response = self.client.get(reverse("version-list"))
+        self.assertEqual(response.status_code, 200)
+        versions = response.json()
+        self.assertEqual(len(versions), 4)
+        self.assertEqual(
+            versions[-1]["version"], settings.MODOBOA_CURRENT_VERSION[0])
+
 
 # Deprecated viewsets
 
@@ -147,6 +198,7 @@ class ExtensionViewSetTestCase(TestCase):
         factories.ModoboaExtensionFactory(name="modoboa-amavis")
         factories.ModoboaExtensionFactory(name="modoboa-stats")
         factories.ModoboaExtensionFactory(name="modoboa-webmail")
+        cls.core = models.ModoboaExtension.objects.core()
 
     def setUp(self):
         """Replace client."""
@@ -160,6 +212,9 @@ class ExtensionViewSetTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         versions = response.json()
         self.assertEqual(len(versions), 3)
+        # Modoboa itself is not an extension.
+        self.assertNotIn(
+            self.core.name, [version["name"] for version in versions])
 
 
 class CurrentVersionAPI(TestCase):
@@ -184,6 +239,32 @@ class CurrentVersionAPI(TestCase):
             models.ModoboaInstance.objects.filter(
                 hostname="mail.pouet.com", known_version="1.0.0")
             .exists())
+
+    def test_current_version_from_database(self):
+        """Version is read from the core row."""
+        models.ModoboaExtension.objects.filter(is_core=True).update(
+            version="9.9.9", url="https://example.test/releases/9.9.9")
+        url = reverse("current_version")
+        url = "{}?client_version={}&client_site={}".format(
+            url, "1.0.0", "mail.pouet.com")
+        content = self.client.get(url).json()
+        self.assertEqual(content["version"], "9.9.9")
+        self.assertEqual(
+            content["changelog_url"], "https://example.test/releases/9.9.9")
+
+    def test_current_version_fallback(self):
+        """Endpoint still answers when the core row is missing."""
+        models.ModoboaExtension.objects.filter(is_core=True).delete()
+        url = reverse("current_version")
+        url = "{}?client_version={}&client_site={}".format(
+            url, "1.0.0", "mail.pouet.com")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        content = response.json()
+        self.assertEqual(
+            content["version"], settings.MODOBOA_CURRENT_VERSION[0])
+        self.assertEqual(
+            content["changelog_url"], settings.MODOBOA_CURRENT_VERSION[1])
 
     def test_bad_version(self):
         """Check that API does not crash."""

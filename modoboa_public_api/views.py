@@ -4,12 +4,26 @@ from django.conf import settings
 from rest_framework import decorators, mixins, response, status, viewsets
 from rest_framework.views import APIView
 
-from .models import ModoboaInstance, ModoboaExtension
+from .models import ModoboaInstance
 from .forms import ClientVersionForm
 
 from . import constants
 from . import models
 from . import serializers
+
+
+def get_core_version():
+    """Return (version, changelog url) for Modoboa itself.
+
+    The value lives in database so a new release can be announced without a
+    deployment. settings.MODOBOA_CURRENT_VERSION is kept as a fallback:
+    /current_version/ is polled by every Modoboa instance out there and must
+    not break because the row was removed.
+    """
+    core = models.ModoboaExtension.objects.core()
+    if core is not None:
+        return core.version, core.url
+    return settings.MODOBOA_CURRENT_VERSION
 
 
 # Legacy API, to deprecate
@@ -51,15 +65,15 @@ class CurrentVersionView(APIView):
             if mdinst.known_version != form.cleaned_data["client_version"]:
                 mdinst.known_version = form.cleaned_data["client_version"]
             mdinst.save()
-        data = {"version": settings.MODOBOA_CURRENT_VERSION[0],
-                "changelog_url": settings.MODOBOA_CURRENT_VERSION[1]}
+        version, changelog_url = get_core_version()
+        data = {"version": version, "changelog_url": changelog_url}
         return response.Response(data)
 
 
 class ExtensionListViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     """List all defined extensions."""
 
-    queryset = ModoboaExtension.objects.all()
+    queryset = models.ModoboaExtension.objects.extensions()
     serializer_class = serializers.ModoboaExtensionSerializer
 
 
@@ -95,14 +109,16 @@ class VersionViewSet(viewsets.ViewSet):
     """List all versions."""
 
     def list(self, request):
-        data = []
-        for extension in models.ModoboaExtension.objects.all():
-            data.append({
-                "name": extension.name, "version": extension.version,
-                "url": ""})
-        data.append({
-            "name": "modoboa", "version": settings.MODOBOA_CURRENT_VERSION[0],
-            "url": settings.MODOBOA_CURRENT_VERSION[1]
-        })
+        # is_core first in the ordering keeps Modoboa last, as before.
+        components = list(
+            models.ModoboaExtension.objects.order_by("is_core", "name"))
+        data = [
+            {"name": component.name, "version": component.version,
+             "url": component.url}
+            for component in components
+        ]
+        if not any(component.is_core for component in components):
+            version, url = settings.MODOBOA_CURRENT_VERSION
+            data.append({"name": "modoboa", "version": version, "url": url})
         serializer = serializers.VersionSerializer(data, many=True)
         return response.Response(serializer.data)

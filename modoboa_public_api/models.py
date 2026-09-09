@@ -40,12 +40,42 @@ class ModoboaInstance(models.Model):
             self.ip_address, self.hostname, self.known_version)
 
 
+class ModoboaExtensionManager(models.Manager):
+    """Custom manager for ModoboaExtension."""
+
+    def core(self):
+        """Return the row describing Modoboa itself, if any."""
+        return self.get_queryset().filter(is_core=True).first()
+
+    def extensions(self):
+        """Return actual extensions, ie. everything but Modoboa itself."""
+        return self.get_queryset().filter(is_core=False)
+
+
 class ModoboaExtension(models.Model):
-    """A modoboa extension with its latest version."""
+    """A modoboa extension with its latest version.
+
+    Modoboa itself is stored here too (is_core=True) so that announcing a
+    new release is a data change instead of a commit and a deployment.
+    """
 
     name = models.CharField(max_length=255, unique=True)
     version = models.CharField(max_length=30)
     deprecated = models.BooleanField(default=False)
+    url = models.URLField(blank=True)
+    is_core = models.BooleanField(default=False)
+    updated = models.DateTimeField(auto_now=True)
+
+    objects = ModoboaExtensionManager()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["is_core"],
+                condition=models.Q(is_core=True),
+                name="unique_core_component",
+            ),
+        ]
 
     def __str__(self):
         return self.name

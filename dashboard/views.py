@@ -73,7 +73,7 @@ class DashboardView(auth_mixins.LoginRequiredMixin, generic.TemplateView):
         )
 
         extension_counters = []
-        extensions = models.ModoboaExtension.objects.all().annotate(
+        extensions = models.ModoboaExtension.objects.extensions().annotate(
             total=Count("modoboainstance"))
         for extension in extensions:
             extension_counters.append([str(extension.name), extension.total])
