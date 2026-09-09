@@ -9,13 +9,6 @@
 
     <link href="{% static 'bootstrap/dist/css/bootstrap.min.css' %}" rel="stylesheet">
     <link href="{% static 'c3/c3.min.css' %}" rel="stylesheet">
-
-    <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
-    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
-    <!--[if lt IE 9]>
-      <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
-      <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
-    <![endif]-->
   </head>
   <body>
     <div class="container">
@@ -52,7 +45,7 @@
       <div class="row">
         <div class="col-sm-6">
           <div class="row">
-            <div class="col-sm-6">
+            <div class="col-sm-12">
               <div class="panel panel-success text-center">
                 <h1 class="text-success">{{ active_instances }}</h1>
                 <h4>{% trans "active instances" %}</h4>
@@ -62,8 +55,6 @@
                 <h4>{% trans "instances sending stats" %}</h4>
               </div>
             </div>
-            <div class="col-sm-6">
-            </div>
           </div>
         </div>
         <div class="col-sm-6">
@@ -71,7 +62,9 @@
         </div>
       </div>
       <hr>
-      <h2 class="text-center">{% trans "Access logs" %} ({{ logs_period.0|date:"SHORT_DATETIME_FORMAT" }} - {{ logs_period.1|date:"SHORT_DATETIME_FORMAT" }})</h2>
+      <h2 class="text-center">{% trans "Access logs" %}
+        {% if logs_period %}({{ logs_period.0|date:"SHORT_DATETIME_FORMAT" }} - {{ logs_period.1|date:"SHORT_DATETIME_FORMAT" }}){% else %}({% trans "no data" %}){% endif %}
+      </h2>
       <div class="row">
         <div class="col-sm-offset-4 col-sm-4">
           <div class="panel panel-success text-center">
@@ -104,7 +97,7 @@
             <h4>{% trans "total" %}</h4>
           </div>
           <div class="panel panel-info text-center">
-            <h1 class="text-info">{{ average_instance_per_day }}</h1>
+            <h1 class="text-info">{{ average_instance_per_day|floatformat:2 }}</h1>
             <h4>{% trans "average (i/d)" %}</h4>
           </div>
         </div>
@@ -114,17 +107,29 @@
       <div id="extensions_usage"></div>
     </div>
 
+    {{ instances_per_version|json_script:"instances-per-version-data" }}
+    {{ new_instances_per_day|json_script:"new-instances-per-day-data" }}
+    {{ extension_counters|json_script:"extension-counters-data" }}
+    {{ hits_by_service|json_script:"hits-by-service-data" }}
+    {{ ips_by_service|json_script:"ips-by-service-data" }}
+
     <script src="{% static 'jquery/dist/jquery.min.js' %}"></script>
     <script src="{% static 'bootstrap/dist/js/bootstrap.min.js' %}"></script>
     <script src="{% static 'd3/d3.min.js' %}"></script>
     <script src="{% static 'c3/c3.min.js' %}"></script>
     <script>
+     function chartData(id) {
+         return JSON.parse(document.getElementById(id).textContent);
+     }
+
      $(document).ready(function() {
+         var new_instances_per_day = chartData('new-instances-per-day-data');
+
          var pie_chart = c3.generate({
              bindto: '#instances_per_version',
              size: { height: 300 },
              data: {
-                 columns: {{ instances_per_version|safe }},
+                 columns: chartData('instances-per-version-data'),
                  type: 'pie'
              },
              legend: {
@@ -140,8 +145,8 @@
              data: {
                  x: 'x',
                  columns: [
-                     ['x', '{{ new_instances_per_day.keys|join:"','" }}'],
-                     ['instances', {{ new_instances_per_day.values|join:"," }}]
+                     ['x'].concat(Object.keys(new_instances_per_day)),
+                     ['instances'].concat(Object.values(new_instances_per_day))
                  ],
                  types: {
                      'instances': 'spline'
@@ -161,7 +166,7 @@
              bindto: '#extensions_usage',
              size: { height: 300 },
              data: {
-                 columns: {{ extension_counters|safe }},
+                 columns: chartData('extension-counters-data'),
                  type: 'bar'
              },
              bar: {
@@ -175,7 +180,7 @@
              bindto: '#hits_by_service',
              size: { height: 300 },
              data: {
-                 columns: {{ hits_by_service|safe }},
+                 columns: chartData('hits-by-service-data'),
                  type: 'bar'
              },
              title: {
@@ -187,7 +192,7 @@
              bindto: '#ips_by_service',
              size: { height: 300 },
              data: {
-                 columns: {{ ips_by_service|safe }},
+                 columns: chartData('ips-by-service-data'),
                  type: 'bar'
              },
              title: {
