@@ -48,19 +48,23 @@ class CurrentVersionView(APIView):
             "ip_address": request.META.get("REMOTE_ADDR"),
             "hostname": form.cleaned_data["client_site"]
         }
-        if ModoboaInstance.objects.filter(**args).exists():
-            mdinst = ModoboaInstance.objects.get(**args)
-        elif ModoboaInstance.objects.filter(hostname=args["hostname"]).exists():
-            mdinst = ModoboaInstance.objects.get(hostname=args["hostname"])
-            mdinst.ip_address = args["ip_address"]
-        elif ModoboaInstance.objects.filter(ip_address=args["ip_address"]).exists():
-            mdinst = ModoboaInstance.objects.get(ip_address=args["ip_address"])
-            if args["hostname"] not in constants.BAD_HOSTNAME_LIST:
+        # Several rows can share a hostname (the new API registers a new row
+        # when an instance changes IP) or an IP address (NAT), so pick the
+        # most recently seen one instead of expecting a single match.
+        instances = ModoboaInstance.objects.order_by("-last_request")
+        mdinst = instances.filter(**args).first()
+        if mdinst is None:
+            mdinst = instances.filter(hostname=args["hostname"]).first()
+            if mdinst is not None:
+                mdinst.ip_address = args["ip_address"]
+        if mdinst is None:
+            mdinst = instances.filter(ip_address=args["ip_address"]).first()
+            if (mdinst is not None and
+                    args["hostname"] not in constants.BAD_HOSTNAME_LIST):
                 mdinst.hostname = args["hostname"]
-        elif args["hostname"] not in constants.BAD_HOSTNAME_LIST:
+        if (mdinst is None and
+                args["hostname"] not in constants.BAD_HOSTNAME_LIST):
             mdinst = ModoboaInstance(**args)
-        else:
-            mdinst = None
         if mdinst is not None:
             if mdinst.known_version != form.cleaned_data["client_version"]:
                 mdinst.known_version = form.cleaned_data["client_version"]

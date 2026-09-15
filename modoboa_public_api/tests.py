@@ -1,5 +1,7 @@
 """API test cases."""
 
+import datetime
+
 from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.urls import reverse
@@ -265,6 +267,26 @@ class CurrentVersionAPI(TestCase):
             content["version"], settings.MODOBOA_CURRENT_VERSION[0])
         self.assertEqual(
             content["changelog_url"], settings.MODOBOA_CURRENT_VERSION[1])
+
+    def test_duplicated_instances(self):
+        """Rows sharing a hostname or an IP address do not crash the API."""
+        url = reverse("current_version")
+        old, recent = factories.ModoboaInstanceFactory.create_batch(
+            2, hostname="mail.pouet.com")
+        models.ModoboaInstance.objects.filter(pk=old.pk).update(
+            last_request=recent.last_request - datetime.timedelta(days=1))
+        response = self.client.get("{}?client_version={}&client_site={}".format(
+            url, "1.1.0", "mail.pouet.com"))
+        self.assertEqual(response.status_code, 200)
+        recent.refresh_from_db()
+        self.assertEqual(recent.known_version, "1.1.0")
+        self.assertEqual(recent.ip_address, "127.0.0.1")
+
+        factories.ModoboaInstanceFactory.create_batch(
+            2, hostname="mail.other.com", ip_address="127.0.0.1")
+        response = self.client.get("{}?client_version={}&client_site={}".format(
+            url, "1.1.0", "localhost"))
+        self.assertEqual(response.status_code, 200)
 
     def test_bad_version(self):
         """Check that API does not crash."""
