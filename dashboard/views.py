@@ -1,5 +1,6 @@
 """Dashboard views."""
 
+import collections
 import datetime
 
 from dateutil.relativedelta import relativedelta
@@ -45,24 +46,25 @@ class DashboardView(auth_mixins.LoginRequiredMixin, generic.TemplateView):
         context = super().get_context_data(**kwargs)
         now = timezone.now()
         month = self.get_requested_month(now)
-        # "Active instance" is defined once, by the model manager.
-        version_counts = list(
+        # "Active instance" is defined once, by the model manager. An instance
+        # that changed IP address is registered again under the same hostname,
+        # so count hostnames, each one with the version of its latest row.
+        version_by_hostname = dict(
             models.ModoboaInstance.objects.active()
-            .values("known_version")
-            .annotate(instance_count=Count("id"))
-            .order_by("-instance_count")
+            .order_by("last_request")
+            .values_list("hostname", "known_version")
         )
+        version_counts = collections.Counter(version_by_hostname.values())
         instances_per_version = [
-            [str(item["known_version"]), item["instance_count"]]
-            for item in version_counts[:5]
+            [str(version), count]
+            for version, count in version_counts.most_common(5)
         ]
-        active_instances = sum(
-            item["instance_count"] for item in version_counts)
+        active_instances = len(version_by_hostname)
         # known_version is free-form text, so versions must be compared as
         # tuples: "1.10.0" >= "1.6.0" is false for a plain string comparison.
         instances_sending_stats = sum(
-            item["instance_count"] for item in version_counts
-            if tools.version_tuple(item["known_version"]) >= MIN_STATS_VERSION
+            count for version, count in version_counts.items()
+            if tools.version_tuple(version) >= MIN_STATS_VERSION
         )
 
         from_datetime = timezone.make_aware(month)
