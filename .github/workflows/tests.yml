@@ -1,0 +1,61 @@
+name: Tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+        database: [sqlite, postgres]
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: modoboa_api
+          POSTGRES_USER: modoboa_api
+          POSTGRES_PASSWORD: modoboa_api
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      POSTGRES_HOST: ${{ matrix.database == 'postgres' && 'localhost' || '' }}
+      POSTGRES_PASSWORD: modoboa_api
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            test-requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt -r test-requirements.txt
+          if [ "${{ matrix.database }}" = "postgres" ]; then
+            pip install "psycopg[binary]"
+          fi
+
+      - name: Check migrations are up to date
+        run: django-admin makemigrations --check --dry-run --pythonpath=. --settings=test_settings
+
+      - name: Run tests
+        run: django-admin test modoboa_public_api --pythonpath=. --settings=test_settings
