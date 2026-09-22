@@ -2,8 +2,8 @@
 
 from rest_framework import serializers
 
-from . import constants
 from . import models
+from . import utils
 
 
 class VersionSerializer(serializers.Serializer):
@@ -56,9 +56,10 @@ class InstanceSerializer(serializers.ModelSerializer):
 
     def validate_hostname(self, value):
         """Check if hostname is allowed."""
-        if value in constants.BAD_HOSTNAME_LIST:
+        hostname = utils.normalize_hostname(value)
+        if hostname is None:
             raise serializers.ValidationError("Invalid hostname.")
-        return value
+        return hostname
 
     def set_instance_extensions(self, instance, extensions):
         """Fetch and set extensions."""
@@ -72,7 +73,8 @@ class InstanceSerializer(serializers.ModelSerializer):
         extensions = validated_data.pop("extensions", None)
         ip_address = self.context["request"].META.get("REMOTE_ADDR")
         qset = models.ModoboaInstance.objects.filter(
-            ip_address=ip_address, hostname=validated_data["hostname"])
+            ip_address=ip_address,
+            hostname__iexact=validated_data["hostname"])
         if qset.exists():
             raise serializers.ValidationError("Instance already registered")
         instance = models.ModoboaInstance.objects.create(

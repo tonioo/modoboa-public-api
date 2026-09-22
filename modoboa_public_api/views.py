@@ -8,9 +8,9 @@ from rest_framework.views import APIView
 from .models import ModoboaInstance
 from .forms import ClientVersionForm
 
-from . import constants
 from . import models
 from . import serializers
+from . import utils
 
 
 def get_core_version():
@@ -34,10 +34,6 @@ class CurrentVersionView(APIView):
     """Get current modoboa version."""
 
     def get(self, request, fmt=None):
-        if request.GET.get("client_version") == "1.2.0-rc2":
-            # Temp. fix
-            request.GET = request.GET.copy()
-            request.GET["client_version"] = "1.2.0"
         form = ClientVersionForm(request.GET)
         if not form.is_valid():
             return response.Response(
@@ -45,30 +41,23 @@ class CurrentVersionView(APIView):
                     "Client version and/or site is missing or incorrect")},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        args = {
-            "ip_address": request.META.get("REMOTE_ADDR"),
-            "hostname": form.cleaned_data["client_site"]
-        }
-        # Several rows can share a hostname (the new API registers a new row
-        # when an instance changes IP) or an IP address (NAT), so pick the
-        # most recently seen one instead of expecting a single match.
-        instances = ModoboaInstance.objects.order_by("-last_request")
-        mdinst = instances.filter(**args).first()
-        if mdinst is None:
-            mdinst = instances.filter(hostname=args["hostname"]).first()
-            if mdinst is not None:
-                mdinst.ip_address = args["ip_address"]
-        if mdinst is None:
-            mdinst = instances.filter(ip_address=args["ip_address"]).first()
-            if (mdinst is not None and
-                    args["hostname"] not in constants.BAD_HOSTNAME_LIST):
-                mdinst.hostname = args["hostname"]
-        if (mdinst is None and
-                args["hostname"] not in constants.BAD_HOSTNAME_LIST):
-            mdinst = ModoboaInstance(**args)
-        if mdinst is not None:
-            if mdinst.known_version != form.cleaned_data["client_version"]:
-                mdinst.known_version = form.cleaned_data["client_version"]
+        # Unusable hostnames still get an answer, they are just not recorded.
+        hostname = utils.normalize_hostname(form.cleaned_data["client_site"])
+        if hostname is not None:
+            # Only a row matching both IP address and hostname is updated:
+            # matching one of them would let anyone claiming a hostname, or
+            # sharing an IP address, take over another instance's row. An
+            # instance that changed IP gets a new row, like with the new API.
+            # Several rows can match (concurrent registrations), so pick the
+            # most recently seen one.
+            ip_address = request.META.get("REMOTE_ADDR")
+            mdinst = ModoboaInstance.objects.filter(
+                ip_address=ip_address, hostname__iexact=hostname
+            ).order_by("-last_request").first()
+            if mdinst is None:
+                mdinst = ModoboaInstance(
+                    ip_address=ip_address, hostname=hostname)
+            mdinst.known_version = form.cleaned_data["client_version"]
             mdinst.save()
         version, changelog_url = get_core_version()
         data = {"version": version, "changelog_url": changelog_url}
@@ -104,8 +93,10 @@ class InstanceViewSet(mixins.CreateModelMixin, mixins.UpdateModelMixin,
         if self.action in ("update", "partial_update"):
             condition = Q(ip_address=self.request.META.get("REMOTE_ADDR"))
             hostname = self.request.data.get("hostname")
-            if isinstance(hostname, str) and hostname:
-                condition |= Q(hostname=hostname)
+            if isinstance(hostname, str):
+                hostname = utils.normalize_hostname(hostname)
+                if hostname is not None:
+                    condition |= Q(hostname__iexact=hostname)
             queryset = queryset.filter(condition)
         return queryset
 
@@ -118,8 +109,10 @@ class InstanceViewSet(mixins.CreateModelMixin, mixins.UpdateModelMixin,
                 "error": "No hostname provided."
             }, status=status.HTTP_400_BAD_REQUEST)
         ip_address = request.META.get("REMOTE_ADDR")
-        instance = models.ModoboaInstance.objects.filter(
-            ip_address=ip_address, hostname=hostname
+        # An unusable hostname cannot be registered, so it is never found.
+        hostname = utils.normalize_hostname(hostname)
+        instance = hostname and models.ModoboaInstance.objects.filter(
+            ip_address=ip_address, hostname__iexact=hostname
         ).order_by("-last_request").first()
         if not instance:
             return response.Response({
