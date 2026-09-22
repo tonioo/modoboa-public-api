@@ -77,7 +77,7 @@ class InstanceSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Instance already registered")
         instance = models.ModoboaInstance.objects.create(
             ip_address=ip_address, **validated_data)
-        if extensions:
+        if extensions is not None:
             self.set_instance_extensions(instance, extensions)
         return instance
 
@@ -88,6 +88,6 @@ class InstanceSerializer(serializers.ModelSerializer):
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
-        if extensions:
+        if extensions is not None:
             self.set_instance_extensions(instance, extensions)
         return instance

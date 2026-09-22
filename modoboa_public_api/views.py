@@ -1,5 +1,6 @@
 """API views."""
 from django.conf import settings
+from django.db.models import Q
 
 from rest_framework import decorators, mixins, response, status, viewsets
 from rest_framework.views import APIView
@@ -90,6 +91,24 @@ class InstanceViewSet(mixins.CreateModelMixin, mixins.UpdateModelMixin,
     queryset = ModoboaInstance.objects.all()
     serializer_class = serializers.InstanceSerializer
 
+    def get_queryset(self):
+        """Only let a client update an instance it can claim.
+
+        There is no authentication and pks are sequential, so a client must
+        match either the IP address or the hostname of the row. Requiring
+        both would lock out instances that change IP (or hostname): Modoboa
+        stores the pk once and never searches it again. Other rows answer
+        404, like missing ones.
+        """
+        queryset = super().get_queryset()
+        if self.action in ("update", "partial_update"):
+            condition = Q(ip_address=self.request.META.get("REMOTE_ADDR"))
+            hostname = self.request.data.get("hostname")
+            if isinstance(hostname, str) and hostname:
+                condition |= Q(hostname=hostname)
+            queryset = queryset.filter(condition)
+        return queryset
+
     @decorators.action(methods=["get"], detail=False)
     def search(self, request, *args, **kwargs):
         """Search an instance."""
@@ -100,7 +119,8 @@ class InstanceViewSet(mixins.CreateModelMixin, mixins.UpdateModelMixin,
             }, status=status.HTTP_400_BAD_REQUEST)
         ip_address = request.META.get("REMOTE_ADDR")
         instance = models.ModoboaInstance.objects.filter(
-            ip_address=ip_address, hostname=hostname).first()
+            ip_address=ip_address, hostname=hostname
+        ).order_by("-last_request").first()
         if not instance:
             return response.Response({
                 "error": "Instance not found."
