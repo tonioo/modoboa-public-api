@@ -5,12 +5,13 @@ import datetime
 from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.urls import reverse
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from rest_framework.test import APIClient
 
 from . import factories
 from . import models
+from . import utils
 
 
 class CoreComponentTestCase(TestCase):
@@ -36,6 +37,31 @@ class CoreComponentTestCase(TestCase):
         extensions = models.ModoboaExtension.objects.extensions()
         self.assertEqual(
             [extension.name for extension in extensions], ["modoboa-amavis"])
+
+
+class NormalizeHostnameTestCase(SimpleTestCase):
+    """Test cases for utils.normalize_hostname."""
+
+    def test_valid(self):
+        for value, expected in [
+                ("mail.pouet.fr", "mail.pouet.fr"),
+                (" Mail.Pouet.FR. ", "mail.pouet.fr"),
+                ("mx-1.pouet.fr", "mx-1.pouet.fr"),
+                ("192.168.1.10", "192.168.1.10"),
+                ("example.com.fr", "example.com.fr"),
+                ("mytest.fr", "mytest.fr")]:
+            with self.subTest(value=value):
+                self.assertEqual(utils.normalize_hostname(value), expected)
+
+    def test_invalid(self):
+        for value in [
+                "", "mail", "localhost", "LocalHost.", "localhost.localdomain",
+                "example.com", "mail.example.com", "mail.example.org",
+                "srv.test", "mail..pouet.fr", "-mail.pouet.fr",
+                "mail_1.pouet.fr", "mail pouet.fr", "::1",
+                "{}.fr".format("a" * 64), ("a." * 126) + "fr"]:
+            with self.subTest(value=value):
+                self.assertIsNone(utils.normalize_hostname(value))
 
 
 class InstanceViewSetTestCase(TestCase):
@@ -168,6 +194,35 @@ class InstanceViewSetTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.md_instance.extensions.count(), 2)
 
+    def test_create_bad_hostname(self):
+        """Unusable hostnames are rejected, others are normalized."""
+        url = reverse("instance-list")
+        for hostname in ["localhost", "mail.example.com", "mail"]:
+            response = self.client.post(
+                url, data={"hostname": hostname, "known_version": "1.0.0"},
+                format="json")
+            self.assertEqual(response.status_code, 400)
+        response = self.client.post(
+            url, data={"hostname": "Mail.Other.FR", "known_version": "1.0.0"},
+            format="json")
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["hostname"], "mail.other.fr")
+        # Already registered, whatever the case.
+        response = self.client.post(
+            url, data={"hostname": "MAIL.POUET.FR", "known_version": "1.0.0"},
+            format="json")
+        self.assertEqual(response.status_code, 400)
+
+    def test_update_hostname_case(self):
+        """The hostname match of the update rule ignores case."""
+        moved = factories.ModoboaInstanceFactory(hostname="Mail.Moved.fr")
+        url = reverse("instance-detail", args=[moved.pk])
+        data = {"hostname": "mail.moved.fr", "known_version": "1.1.0"}
+        response = self.client.put(url, data=data, format="json")
+        self.assertEqual(response.status_code, 200)
+        moved.refresh_from_db()
+        self.assertEqual(moved.hostname, "mail.moved.fr")
+
     def test_update_dev_version(self):
         """Test update with a dev version."""
         data = {
@@ -200,6 +255,15 @@ class InstanceViewSetTestCase(TestCase):
         response = self.client.get(reverse("instance-search"))
         self.assertEqual(response.status_code, 400)
 
+
+    def test_search_normalized(self):
+        """Search ignores case and rejects unusable hostnames."""
+        url = reverse("instance-search")
+        response = self.client.get(url, {"hostname": "MAIL.pouet.fr."})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["pk"], self.md_instance.pk)
+        response = self.client.get(url, {"hostname": "localhost"})
+        self.assertEqual(response.status_code, 404)
 
     def test_search_duplicates(self):
         """The most recently seen row wins when several match."""
@@ -342,44 +406,90 @@ class CurrentVersionAPI(TestCase):
             content["changelog_url"], settings.MODOBOA_CURRENT_VERSION[1])
 
     def test_duplicated_instances(self):
-        """Rows sharing a hostname or an IP address do not crash the API."""
+        """Several rows matching the caller do not crash the API."""
         url = reverse("current_version")
         old, recent = factories.ModoboaInstanceFactory.create_batch(
-            2, hostname="mail.pouet.com")
+            2, hostname="mail.pouet.com", ip_address="127.0.0.1")
         models.ModoboaInstance.objects.filter(pk=old.pk).update(
             last_request=recent.last_request - datetime.timedelta(days=1))
-        response = self.client.get("{}?client_version={}&client_site={}".format(
-            url, "1.1.0", "mail.pouet.com"))
+        response = self.client.get(self.url(url, "1.1.0", "mail.pouet.com"))
         self.assertEqual(response.status_code, 200)
         recent.refresh_from_db()
         self.assertEqual(recent.known_version, "1.1.0")
-        self.assertEqual(recent.ip_address, "127.0.0.1")
+        old.refresh_from_db()
+        self.assertEqual(old.known_version, "1.0.0")
 
-        factories.ModoboaInstanceFactory.create_batch(
-            2, hostname="mail.other.com", ip_address="127.0.0.1")
-        response = self.client.get("{}?client_version={}&client_site={}".format(
-            url, "1.1.0", "localhost"))
+    def test_hostname_takeover(self):
+        """Claiming a hostname does not move another instance's row."""
+        victim = factories.ModoboaInstanceFactory(hostname="mail.victim.com")
+        response = self.client.get(
+            self.url(reverse("current_version"), "6.6.6", "mail.victim.com"))
         self.assertEqual(response.status_code, 200)
+        victim.refresh_from_db()
+        self.assertEqual(victim.ip_address, "1.2.3.4")
+        self.assertEqual(victim.known_version, "1.0.0")
+        # The caller got its own row instead.
+        self.assertTrue(
+            models.ModoboaInstance.objects.filter(
+                hostname="mail.victim.com", ip_address="127.0.0.1",
+                known_version="6.6.6").exists())
+
+    def test_shared_ip_address(self):
+        """Instances behind the same IP address keep their own rows."""
+        neighbour = factories.ModoboaInstanceFactory(
+            hostname="mail.neighbour.com", ip_address="127.0.0.1")
+        response = self.client.get(
+            self.url(reverse("current_version"), "1.1.0", "mail.pouet.com"))
+        self.assertEqual(response.status_code, 200)
+        neighbour.refresh_from_db()
+        self.assertEqual(neighbour.hostname, "mail.neighbour.com")
+        self.assertEqual(neighbour.known_version, "1.0.0")
+        self.assertEqual(models.ModoboaInstance.objects.count(), 2)
+
+    def test_bad_hostname(self):
+        """Unusable hostnames are answered but never recorded."""
+        neighbour = factories.ModoboaInstanceFactory(
+            hostname="mail.neighbour.com", ip_address="127.0.0.1")
+        for hostname in ["localhost", "LOCALHOST", "mail.example.com", "mail"]:
+            response = self.client.get(
+                self.url(reverse("current_version"), "1.1.0", hostname))
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("version", response.json())
+        neighbour.refresh_from_db()
+        self.assertEqual(neighbour.known_version, "1.0.0")
+        self.assertEqual(models.ModoboaInstance.objects.count(), 1)
+
+    def test_hostname_normalized(self):
+        """Hostname case and trailing dot do not create new rows."""
+        instance = factories.ModoboaInstanceFactory(
+            hostname="Mail.Pouet.com", ip_address="127.0.0.1")
+        response = self.client.get(
+            self.url(reverse("current_version"), "1.1.0", "mail.pouet.com."))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(models.ModoboaInstance.objects.count(), 1)
+        instance.refresh_from_db()
+        self.assertEqual(instance.known_version, "1.1.0")
 
     def test_too_long_values(self):
         """Values the database cannot store are rejected, not a crash."""
         url = reverse("current_version")
-        response = self.client.get("{}?client_version={}&client_site={}".format(
-            url, "1" * 31, "mail.pouet.com"))
+        response = self.client.get(self.url(url, "1" * 31, "mail.pouet.com"))
         self.assertEqual(response.status_code, 400)
-        response = self.client.get("{}?client_version={}&client_site={}".format(
-            url, "1.0.0", "a" * 256))
+        response = self.client.get(self.url(url, "1.0.0", "a" * 256))
         self.assertEqual(response.status_code, 400)
         self.assertFalse(models.ModoboaInstance.objects.exists())
 
-    def test_bad_version(self):
-        """Check that API does not crash."""
-        url = reverse("current_version")
-        url = "{}?client_version={}&client_site={}".format(
-            url, "1.2.0-rc2", "mail.pouet.com")
-        response = self.client.get(url)
+    def test_pre_release_version(self):
+        """Pre-release versions are stored as sent."""
+        response = self.client.get(
+            self.url(reverse("current_version"), "1.2.0-rc2", "mail.pouet.com"))
         self.assertEqual(response.status_code, 200)
         self.assertTrue(
             models.ModoboaInstance.objects.filter(
-                hostname="mail.pouet.com", known_version="1.2.0")
+                hostname="mail.pouet.com", known_version="1.2.0-rc2")
             .exists())
+
+    @staticmethod
+    def url(url, client_version, client_site):
+        return "{}?client_version={}&client_site={}".format(
+            url, client_version, client_site)
