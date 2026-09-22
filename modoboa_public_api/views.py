@@ -10,6 +10,7 @@ from .forms import ClientVersionForm
 
 from . import models
 from . import serializers
+from . import throttling
 from . import utils
 
 
@@ -43,7 +44,10 @@ class CurrentVersionView(APIView):
             )
         # Unusable hostnames still get an answer, they are just not recorded.
         hostname = utils.normalize_hostname(form.cleaned_data["client_site"])
-        if hostname is not None:
+        # Old clients are not ready for a 429, so above the rate limit the
+        # version is still served, only the write is skipped.
+        throttle = throttling.CurrentVersionThrottle()
+        if hostname is not None and throttle.allow_request(request, self):
             # Only a row matching both IP address and hostname is updated:
             # matching one of them would let anyone claiming a hostname, or
             # sharing an IP address, take over another instance's row. An
@@ -79,6 +83,14 @@ class InstanceViewSet(mixins.CreateModelMixin, mixins.UpdateModelMixin,
 
     queryset = ModoboaInstance.objects.all()
     serializer_class = serializers.InstanceSerializer
+
+    def get_throttles(self):
+        # Checked before the object lookup, so updates answering 404 count.
+        if self.action == "create":
+            return [throttling.InstanceCreateThrottle()]
+        if self.action in ("update", "partial_update"):
+            return [throttling.InstanceUpdateThrottle()]
+        return super().get_throttles()
 
     def get_queryset(self):
         """Only let a client update an instance it can claim.

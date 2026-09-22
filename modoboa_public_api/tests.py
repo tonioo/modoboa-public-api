@@ -1,11 +1,13 @@
 """API test cases."""
 
 import datetime
+from unittest import mock
 
 from django.conf import settings
+from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from django.urls import reverse
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 
 from rest_framework.test import APIClient
 
@@ -79,6 +81,8 @@ class InstanceViewSetTestCase(TestCase):
         """Replace client."""
         super(InstanceViewSetTestCase, self).setUp()
         self.client = APIClient()
+        # Throttling counters live in the cache.
+        cache.clear()
 
     def test_create(self):
         """Test creation of instance."""
@@ -223,6 +227,24 @@ class InstanceViewSetTestCase(TestCase):
         moved.refresh_from_db()
         self.assertEqual(moved.hostname, "mail.moved.fr")
 
+    def test_counter_bounds(self):
+        """Counters and extension lists are bounded."""
+        url = reverse("instance-detail", args=[self.md_instance.pk])
+        data = {
+            "hostname": "mail.pouet.fr", "known_version": "1.0.0",
+            "mailbox_counter": 1000001
+        }
+        response = self.client.put(url, data=data, format="json")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("mailbox_counter", response.json())
+        data["mailbox_counter"] = 1000000
+        response = self.client.put(url, data=data, format="json")
+        self.assertEqual(response.status_code, 200)
+        data["extensions"] = ["modoboa-amavis"] * 101
+        response = self.client.put(url, data=data, format="json")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("extensions", response.json())
+
     def test_update_dev_version(self):
         """Test update with a dev version."""
         data = {
@@ -278,6 +300,87 @@ class InstanceViewSetTestCase(TestCase):
         self.assertEqual(response.json()["pk"], recent.pk)
 
 
+@override_settings(REST_FRAMEWORK={"DEFAULT_THROTTLE_RATES": {
+    "instance_create": "2/hour", "instance_update": "2/hour",
+    "current_version": "2/hour"}})
+class ThrottlingTestCase(TestCase):
+    """Writes are rate limited per client IP address."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.md_instance = factories.ModoboaInstanceFactory(
+            hostname="mail.pouet.fr", ip_address="127.0.0.1")
+
+    def setUp(self):
+        super().setUp()
+        self.client = APIClient()
+        cache.clear()
+
+    def create(self, hostname, **extra):
+        return self.client.post(
+            reverse("instance-list"),
+            data={"hostname": hostname, "known_version": "1.0.0"},
+            format="json", **extra)
+
+    def test_create(self):
+        """Creation is throttled, per REMOTE_ADDR only."""
+        self.assertEqual(self.create("mail.one.fr").status_code, 201)
+        self.assertEqual(self.create("mail.two.fr").status_code, 201)
+        self.assertEqual(self.create("mail.three.fr").status_code, 429)
+        # A forged X-Forwarded-For does not give a new identity.
+        response = self.create(
+            "mail.three.fr", HTTP_X_FORWARDED_FOR="10.9.8.7")
+        self.assertEqual(response.status_code, 429)
+        # Another client is not affected.
+        response = self.create("mail.three.fr", REMOTE_ADDR="10.0.0.1")
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(models.ModoboaInstance.objects.count(), 4)
+
+    def test_update(self):
+        """Updates are throttled, including those answering 404."""
+        data = {"hostname": "mail.pouet.fr", "known_version": "1.1.0"}
+        for pk in (9999, self.md_instance.pk):
+            response = self.client.put(
+                reverse("instance-detail", args=[pk]), data=data,
+                format="json")
+            self.assertIn(response.status_code, (200, 404))
+        response = self.client.put(
+            reverse("instance-detail", args=[self.md_instance.pk]),
+            data=data, format="json")
+        self.assertEqual(response.status_code, 429)
+
+    def test_reads_not_throttled(self):
+        """Search and versions are not limited."""
+        for _ in range(5):
+            self.create("mail.other.fr")
+            response = self.client.get(
+                reverse("instance-search"), {"hostname": "mail.pouet.fr"})
+            self.assertEqual(response.status_code, 200)
+            response = self.client.get(reverse("version-list"))
+            self.assertEqual(response.status_code, 200)
+
+    def test_cache_unavailable(self):
+        """Writes are allowed when the cache cannot be reached."""
+        with mock.patch(
+                "rest_framework.throttling.SimpleRateThrottle.cache"
+        ) as broken_cache, self.assertLogs(
+                "modoboa_public_api.throttling", "WARNING"):
+            broken_cache.get.side_effect = ConnectionError
+            for hostname in ("mail.one.fr", "mail.two.fr", "mail.three.fr"):
+                self.assertEqual(self.create(hostname).status_code, 201)
+
+    def test_current_version(self):
+        """Above the limit, the version is served but nothing is written."""
+        url = reverse("current_version")
+        for version in ("1.1.0", "1.2.0", "1.3.0"):
+            response = self.client.get(
+                url, {"client_version": version, "client_site": "mail.pouet.fr"})
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("version", response.json())
+        self.md_instance.refresh_from_db()
+        self.assertEqual(self.md_instance.known_version, "1.2.0")
+
+
 class VersionViewSetTestCase(TestCase):
     """TestCase for VersionViewSet."""
 
@@ -292,6 +395,8 @@ class VersionViewSetTestCase(TestCase):
         """Replace client."""
         super(VersionViewSetTestCase, self).setUp()
         self.client = APIClient()
+        # Throttling counters live in the cache.
+        cache.clear()
 
     def test_list(self):
         """Test list."""
@@ -343,6 +448,8 @@ class ExtensionViewSetTestCase(TestCase):
         """Replace client."""
         super(ExtensionViewSetTestCase, self).setUp()
         self.client = APIClient()
+        # Throttling counters live in the cache.
+        cache.clear()
 
     def test_list(self):
         """Test list."""
@@ -363,6 +470,8 @@ class CurrentVersionAPI(TestCase):
         """Replace client."""
         super(CurrentVersionAPI, self).setUp()
         self.client = APIClient()
+        # Throttling counters live in the cache.
+        cache.clear()
 
     def test_current_version(self):
         """Check API call."""
