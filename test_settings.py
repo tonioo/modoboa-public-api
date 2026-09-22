@@ -5,7 +5,8 @@ need is defined here:
 
     django-admin test --pythonpath=. --settings=test_settings
 
-SQLite is used unless POSTGRES_HOST is set (production runs PostgreSQL).
+SQLite and a memory cache are used unless POSTGRES_HOST and REDIS_URL are
+set (production runs PostgreSQL and Redis).
 """
 
 import os
@@ -35,6 +36,15 @@ else:
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": ":memory:",
+        }
+    }
+
+# Throttling counters live in the cache.
+if os.environ.get("REDIS_URL"):
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": os.environ["REDIS_URL"],
         }
     }
 

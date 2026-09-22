@@ -2,6 +2,7 @@
 
 from rest_framework import serializers
 
+from . import constants
 from . import models
 from . import utils
 
@@ -34,7 +35,7 @@ class ModoboaExtensionSerializer(BaseExtensionSerializer):
 class ExtensionListField(serializers.ListField):
     """Custom list field."""
 
-    child = serializers.CharField()
+    child = serializers.CharField(max_length=255)
 
     def to_representation(self, value):
         """Override representation."""
@@ -44,7 +45,8 @@ class ExtensionListField(serializers.ListField):
 class InstanceSerializer(serializers.ModelSerializer):
     """A serializer for Instance."""
 
-    extensions = ExtensionListField(required=False)
+    extensions = ExtensionListField(
+        required=False, max_length=constants.MAX_EXTENSIONS)
 
     class Meta:
         model = models.ModoboaInstance
@@ -53,6 +55,12 @@ class InstanceSerializer(serializers.ModelSerializer):
             "domain_counter", "domain_alias_counter",
             "mailbox_counter", "alias_counter",
             "extensions")
+        extra_kwargs = {
+            field: {"max_value": constants.MAX_COUNTER_VALUE}
+            for field in (
+                "domain_counter", "domain_alias_counter",
+                "mailbox_counter", "alias_counter")
+        }
 
     def validate_hostname(self, value):
         """Check if hostname is allowed."""
