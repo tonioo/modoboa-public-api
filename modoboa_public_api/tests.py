@@ -108,6 +108,66 @@ class InstanceViewSetTestCase(TestCase):
         self.md_instance.refresh_from_db()
         self.assertEqual(self.md_instance.extensions.count(), 1)
 
+    def test_update_other_instance(self):
+        """A client cannot update a row it matches neither by IP nor hostname."""
+        other = factories.ModoboaInstanceFactory(hostname="mail.other.fr")
+        url = reverse("instance-detail", args=[other.pk])
+        data = {
+            "hostname": "mail.pouet.fr", "known_version": "6.6.6",
+            "domain_counter": 1000000
+        }
+        response = self.client.put(url, data=data, format="json")
+        self.assertEqual(response.status_code, 404)
+        response = self.client.patch(
+            url, data={"domain_counter": 1000000}, format="json")
+        self.assertEqual(response.status_code, 404)
+        other.refresh_from_db()
+        self.assertEqual(other.hostname, "mail.other.fr")
+        self.assertEqual(other.ip_address, "1.2.3.4")
+        self.assertEqual(other.known_version, "1.0.0")
+        self.assertEqual(other.domain_counter, 0)
+
+    def test_update_after_ip_change(self):
+        """An instance whose IP changed can still update its row."""
+        moved = factories.ModoboaInstanceFactory(hostname="mail.moved.fr")
+        url = reverse("instance-detail", args=[moved.pk])
+        data = {"hostname": "mail.moved.fr", "known_version": "1.1.0"}
+        response = self.client.put(url, data=data, format="json")
+        self.assertEqual(response.status_code, 200)
+        moved.refresh_from_db()
+        self.assertEqual(moved.ip_address, "127.0.0.1")
+        self.assertEqual(moved.known_version, "1.1.0")
+
+    def test_update_after_hostname_change(self):
+        """An instance whose hostname changed can still update its row."""
+        url = reverse("instance-detail", args=[self.md_instance.pk])
+        data = {"hostname": "mail.renamed.fr", "known_version": "1.1.0"}
+        response = self.client.put(url, data=data, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.md_instance.refresh_from_db()
+        self.assertEqual(self.md_instance.hostname, "mail.renamed.fr")
+
+    def test_update_clear_extensions(self):
+        """An empty extension list removes all extensions."""
+        self.md_instance.extensions.set(
+            models.ModoboaExtension.objects.extensions())
+        url = reverse("instance-detail", args=[self.md_instance.pk])
+        data = {
+            "hostname": "mail.pouet.fr", "known_version": "1.0.0",
+            "extensions": []
+        }
+        response = self.client.put(url, data=data, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.md_instance.extensions.count(), 0)
+
+        # Omitting the field leaves extensions untouched.
+        self.md_instance.extensions.set(
+            models.ModoboaExtension.objects.extensions())
+        del data["extensions"]
+        response = self.client.put(url, data=data, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.md_instance.extensions.count(), 2)
+
     def test_update_dev_version(self):
         """Test update with a dev version."""
         data = {
@@ -139,6 +199,19 @@ class InstanceViewSetTestCase(TestCase):
 
         response = self.client.get(reverse("instance-search"))
         self.assertEqual(response.status_code, 400)
+
+
+    def test_search_duplicates(self):
+        """The most recently seen row wins when several match."""
+        recent = factories.ModoboaInstanceFactory(
+            hostname="mail.pouet.fr", ip_address="127.0.0.1")
+        models.ModoboaInstance.objects.filter(pk=self.md_instance.pk).update(
+            last_request=recent.last_request - datetime.timedelta(days=1))
+        url = "{}?hostname={}".format(
+            reverse("instance-search"), "mail.pouet.fr")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["pk"], recent.pk)
 
 
 class VersionViewSetTestCase(TestCase):
@@ -287,6 +360,17 @@ class CurrentVersionAPI(TestCase):
         response = self.client.get("{}?client_version={}&client_site={}".format(
             url, "1.1.0", "localhost"))
         self.assertEqual(response.status_code, 200)
+
+    def test_too_long_values(self):
+        """Values the database cannot store are rejected, not a crash."""
+        url = reverse("current_version")
+        response = self.client.get("{}?client_version={}&client_site={}".format(
+            url, "1" * 31, "mail.pouet.com"))
+        self.assertEqual(response.status_code, 400)
+        response = self.client.get("{}?client_version={}&client_site={}".format(
+            url, "1.0.0", "a" * 256))
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(models.ModoboaInstance.objects.exists())
 
     def test_bad_version(self):
         """Check that API does not crash."""
