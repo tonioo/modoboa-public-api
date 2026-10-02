@@ -21,6 +21,9 @@ MONTH_FORMAT = "%m%Y"
 # Instances older than this one do not report any statistic.
 MIN_STATS_VERSION = (1, 6, 0)
 
+# Release series shown on the version chart, the others are summed up.
+MAX_VERSION_SERIES = 5
+
 
 class DashboardView(auth_mixins.LoginRequiredMixin, generic.TemplateView):
     """Dashboard view."""
@@ -55,11 +58,24 @@ class DashboardView(auth_mixins.LoginRequiredMixin, generic.TemplateView):
             .values_list("hostname", "known_version")
         )
         version_counts = collections.Counter(version_by_hostname.values())
-        instances_per_version = [
-            [str(version), count]
-            for version, count in version_counts.most_common(5)
-        ]
         active_instances = len(version_by_hostname)
+        # Group patch releases by series: counted one by one, the releases
+        # of a recent series split its instances and drop out of the top.
+        series_counts = collections.Counter()
+        for version, count in version_counts.items():
+            series_counts[tools.version_series(version)] += count
+        top_series = series_counts.most_common(MAX_VERSION_SERIES)
+        instances_per_version = [
+            [label, count] for label, count in sorted(
+                top_series, key=lambda item: tools.version_tuple(item[0]),
+                reverse=True)
+        ]
+        # Without the remaining instances, the pie shares would be computed
+        # against the top series only.
+        other_instances = active_instances - sum(
+            count for label, count in top_series)
+        if other_instances:
+            instances_per_version.append(["others", other_instances])
         # known_version is free-form text, so versions must be compared as
         # tuples: "1.10.0" >= "1.6.0" is false for a plain string comparison.
         instances_sending_stats = sum(

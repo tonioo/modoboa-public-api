@@ -45,6 +45,18 @@ def version_tuple(version):
     return tuple(int(part) if part else 0 for part in match.groups())
 
 
+def version_series(version):
+    """Return the release series of a free-form version, eg. "2.9.x".
+
+    Patch releases and dev versions of a series share the same label, an
+    unparsable value is labelled "unknown".
+    """
+    match = VERSION_PATTERN.match(version or "")
+    if not match:
+        return "unknown"
+    return "{}.{}.x".format(int(match.group(1)), int(match.group(2) or 0))
+
+
 def parse_log_datetime(value):
     """Return an aware datetime from an nginx $time_local field.
 

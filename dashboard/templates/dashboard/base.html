@@ -130,7 +130,9 @@
              size: { height: 300 },
              data: {
                  columns: chartData('instances-per-version-data'),
-                 type: 'pie'
+                 type: 'pie',
+                 // Keep the server order: newest series first, others last.
+                 order: null
              },
              legend: {
                  position: 'right'
